@@ -25,9 +25,10 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   // memory for keeping cache state
   val depthBitCount = log2Up(depth)
   val tagBitCount = addrBits - depthBitCount
-  val cacheLines = Mem(UInt(width=lineSize), depth)
-  val tagDirectory = Mem(UInt(width=tagBitCount), depth)
-  val validDirectory = Mem(UInt(width=1), depth)
+  val cacheLineTotalSize = lineSize+tagBitCount+1
+  // aggregate storage for cache data (to infer single RAM)
+  // MSB -> data(lineSize) tag(tagBitCount)  valid(1)  <- LSB
+  val cacheLines = Mem(UInt(width=cacheLineTotalSize), depth)
   
   val sInit :: sActive :: sCacheFill :: Nil = Enum(UInt(), 3)
   val state = Reg(init = UInt(sInit))
@@ -38,9 +39,10 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   val currentReqInd = currentReq(depthBitCount-1, 0)
   val currentReqTag = currentReq(addrBits-1, depthBitCount)
   
-  val currentReqLineValid = validDirectory(currentReqInd)
-  val currentReqLineTag = tagDirectory(currentReqInd)
-  val currentReqLineData = cacheLines(currentReqInd)
+  val currentReqLine = cacheLines(currentReqInd)
+  val currentReqLineValid = currentReqLine(0)
+  val currentReqLineTag = currentReqLine(tagBitCount, 1)
+  val currentReqLineData = currentReqLine(cacheLineTotalSize-1, tagBitCount+1)
   
   // shorthands for current memory response
   val currentMemResp = io.memResp.bits
@@ -55,10 +57,14 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   when (state === sInit)
   {
     // unset all valid bit in cache at init time
-    // TODO FPGA block mem can be initialized
-    initCtr := initCtr + UInt(1)
-    validDirectory(initCtr) := UInt(0, 1)
     io.cacheInitialized := Bool(false)
+    // TODO FPGA block mem can be initialized at config time, so this is
+    // commented out
+    // cacheLines(initCtr) := Fill(cacheLineTotalSize, Bits(0))
+    
+    initCtr := initCtr + UInt(1)
+    
+    // go to sActive when all blocks initialized
     when (initCtr === UInt(depth-1)) { state := sActive}
   }
   .elsewhen (state === sActive)
@@ -97,11 +103,8 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
     // check to see if any responses from memory are pending
     when (io.memResp.valid)
     {
-      // write returned data to cache
-      cacheLines(currentReqInd) := currentMemResp
-      // fix tag and valid bits
-      validDirectory(currentReqInd) := UInt(1)
-      tagDirectory(currentReqInd) := currentReqTag
+      // write returned data to cache, fix tag and valid bits
+      cacheLines(currentReqInd) := Cat(currentMemResp, Cat(currentReqTag, Bits(1, 1)))
       // pop response from queue
       io.memResp.deq()
       // go back to active state
