@@ -35,27 +35,30 @@
 #include "platform.h"
 #include "xaxidma.h"
 
+typedef unsigned long int u64_t;
+
 #define DMA_DEV_ID		XPAR_AXIDMA_0_DEVICE_ID
 #define DDR_BASE_ADDR	(0x10000000)
-#define OCM_OFFSET		(0x00000000)
+#define DATA_OFFSET		(0x00001000)
 
 XAxiDma AxiDma;
 
-volatile unsigned int * streamSumBase = (volatile unsigned int *) 0x43c00000;
-volatile unsigned int * ramBufferBase = (volatile unsigned int *) DDR_BASE_ADDR;
+volatile u64_t * streamSumBase = (volatile u64_t *) 0x43c00000;
+volatile unsigned int * indexBuffer = (volatile unsigned int *) DDR_BASE_ADDR;
+volatile u64_t * dataBuffer = (volatile u64_t *) (DDR_BASE_ADDR + DATA_OFFSET);
 
-#define	REG_ACCEL_ID	0
-#define	REG_STREAM_SUM	1
-#define REG_ELEM_CNT	2
+#define	REG_ACCEL_ID	(0 << 1)
+#define	REG_STREAM_SUM	(1 << 1)
+#define REG_ELEM_CNT	(2 << 1)
 
 void printStreamSumBaseStatus()
 {
-	xil_printf("StreamSum accelerator ID: %x\n", streamSumBase[REG_ACCEL_ID]);
-	xil_printf("Current stream sum: %d\n", streamSumBase[REG_STREAM_SUM]);
-	xil_printf("Current element count: %d\n", streamSumBase[REG_ELEM_CNT]);
+	printf("StreamSum accelerator ID: %lx\n", streamSumBase[REG_ACCEL_ID]);
+	printf("Current stream sum: %lu\n", streamSumBase[REG_STREAM_SUM]);
+	printf("Current element count: %lu\n", streamSumBase[REG_ELEM_CNT]);
 }
 
-void doSomeDMA(u16 DeviceId, unsigned int wordCount)
+int initDMA(u16 DeviceId)
 {
 	XAxiDma_Config *CfgPtr;
 	int Status;
@@ -86,46 +89,67 @@ void doSomeDMA(u16 DeviceId, unsigned int wordCount)
 	XAxiDma_IntrDisable(&AxiDma, XAXIDMA_IRQ_ALL_MASK,
 						XAXIDMA_DMA_TO_DEVICE);
 
+	return XST_SUCCESS;
+
+}
+
+void doSomeDMA(unsigned int wordCount)
+{
 	// put some values into the DDR for the sum accelerator to pick up
 	unsigned int i;
+	int Status;
 
-	memset(ramBufferBase,0,8192);
-	/*for(i = 0; i < wordCount; i++)
-		ramBufferBase[i] = i+1;
+	if(wordCount >= DATA_OFFSET/4)
+	{
+		xil_printf("Too many elements! Max: %d \n", DATA_OFFSET/4);
+		return;
+	}
 
+
+	unsigned int checksum = 0;
 	for(i = 0; i < wordCount; i++)
-		if ( ramBufferBase[i] != i+1)
+	{
+		indexBuffer[i] = (unsigned int) &(dataBuffer[i]);
+		dataBuffer[i] = i+1;
+		checksum += i;
+		/*printf("indexBuffer[i] = %x\n", indexBuffer[i]);
+		printf("dataBuffer[i] = %x\n", dataBuffer[i]);*/
+	}
+/*
+	for(i = 0; i < wordCount; i++)
+		if ( indexBuffer[i] == &(dataBuffer[i]))
 			xil_printf("memcheck error!\n");
 		else
 			xil_printf("memcheck OK\n");
 			*/
 
-	xil_printf("DMA has MM2S: %d, has S2MM: %d, chan max transfer %d\n", AxiDma.HasMm2S, AxiDma.HasS2Mm, AxiDma.TxBdRing.MaxTransferLen);
+	/*xil_printf("DMA has MM2S: %d, has S2MM: %d, chan max transfer %d\n", AxiDma.HasMm2S, AxiDma.HasS2Mm, AxiDma.TxBdRing.MaxTransferLen);
 
-	xil_printf("Data width: %d\n", AxiDma.TxBdRing.DataWidth);
+	xil_printf("Data width: %d\n", AxiDma.TxBdRing.DataWidth);*/
 
 	Xil_DCacheFlush();
 
+	u64_t prev= streamSumBase[REG_STREAM_SUM];
+	Status = XAxiDma_SimpleTransfer(&AxiDma, (u32) (indexBuffer), wordCount*4, XAXIDMA_DMA_TO_DEVICE);
 
-	unsigned int prev = streamSumBase[REG_STREAM_SUM];
-	Status = XAxiDma_SimpleTransfer(&AxiDma, (u32) (ramBufferBase+OCM_OFFSET), wordCount, XAXIDMA_DMA_TO_DEVICE);
 	if( Status == XST_SUCCESS)
 		xil_printf("Device to DMA OK!\n");
 	else
 		xil_printf("Device to DMA failed: %d\n", Status);
 
 	while(XAxiDma_Busy(&AxiDma, XAXIDMA_DMA_TO_DEVICE));
+	u64_t curr = streamSumBase[REG_STREAM_SUM];
 
+	xil_printf("Sum should be %d, delta is %d\n", checksum,curr-prev);
 
-	unsigned int curr = streamSumBase[REG_STREAM_SUM];
-
-		xil_printf("curr-prev = %d (%x)\n", curr-prev, curr-prev);
 }
 
 int main()
 {
     init_platform();
     //Xil_DCacheDisable();
+
+    initDMA(DMA_DEV_ID);
 
     xil_printf("Hello World\n\r");
 
@@ -136,14 +160,10 @@ int main()
     	printf("Bytecount: ");
     	scanf("%d", &wc);
 
-    	doSomeDMA(DMA_DEV_ID, wc);
+    	if(wc != 0)
+    		doSomeDMA(wc);
     }
-
-
-
-
-
-
 
     return 0;
 }
+
