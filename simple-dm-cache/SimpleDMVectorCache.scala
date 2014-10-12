@@ -14,7 +14,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
     val memReq = new EnqIO(UInt(width = addrBits))
     val memResp = new DeqIO(UInt(width = lineSize))
     // init indicator and cache stat outputs
-    val cacheInitialized = Bool(OUTPUT)
+    val cacheActive = Bool(OUTPUT)
     val readCount = UInt(OUTPUT, 32)
     val missCount = UInt(OUTPUT, 32)
   }
@@ -25,9 +25,11 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   // memory for keeping cache state
   val depthBitCount = log2Up(depth)
   val tagBitCount = addrBits - depthBitCount
-  val cacheLines = Mem(UInt(width=lineSize), depth)
-  val tagDirectory = Mem(UInt(width=tagBitCount), depth)
-  val validDirectory = Mem(UInt(width=1), depth)
+
+  // combinational-read memory for tag and valid (LUTRAM)
+  val tagStorage = Mem(UInt(width=tagBitCount+1), depth, false)
+  // enable sequential reads for data storage (to infer BRAM)
+  val cacheLines = Mem(UInt(width=lineSize), depth, true)
   
   val sInit :: sActive :: sCacheFill :: Nil = Enum(UInt(), 3)
   val state = Reg(init = UInt(sInit))
@@ -35,30 +37,43 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   
   // shorthands for current request
   val currentReq = io.readReq.bits
-  val currentReqInd = currentReq(depthBitCount-1, 0)
-  val currentReqTag = currentReq(addrBits-1, depthBitCount)
+  val currentReqInd = currentReq(depthBitCount-1, 0)         // lower bits as index
+  val currentReqTag = currentReq(addrBits-1, depthBitCount)  // higher bits as tag
   
-  val currentReqLineValid = validDirectory(currentReqInd)
-  val currentReqLineTag = tagDirectory(currentReqInd)
-  val currentReqLineData = cacheLines(currentReqInd)
+  val currentReqEntry = tagStorage(currentReqInd)
+  val currentReqLineValid = currentReqEntry(0)               // lowest bit = valid
+  val currentReqLineTag = currentReqEntry(tagBitCount, 1)    // other bits = tag
+  
+  // register address input of cache data
+  val enableWriteOutputReg = Reg(init = Bool(false))
+  val bramReadAddrReg = Reg(next = currentReqInd)
+  
+  io.readResp.bits := cacheLines(bramReadAddrReg)
+  io.readResp.valid := enableWriteOutputReg
   
   // shorthands for current memory response
   val currentMemResp = io.memResp.bits
   
   // drive default outputs
-  io.cacheInitialized := Bool(true) // whether cache has been initialized
+  io.cacheActive := (state === sActive)
   io.readReq.ready := Bool(false)   // whether cache can accept a read req
   io.memResp.ready := Bool(false)   // whether cache can accept a mem resp
   io.readCount := readCount         // total reads so far (hits = total - misses)
   io.missCount := missCount         // total misses so far
   
+  // default next-values for registers
+  enableWriteOutputReg := Bool(false)
+  
   when (state === sInit)
   {
     // unset all valid bit in cache at init time
-    // TODO FPGA block mem can be initialized
+    // TODO FPGA mem can be initialized at config time, so this is
+    // commented out
+    // reset every valid bit in the cache
+    
     initCtr := initCtr + UInt(1)
-    validDirectory(initCtr) := UInt(0, 1)
-    io.cacheInitialized := Bool(false)
+    
+    // go to sActive when all blocks initialized
     when (initCtr === UInt(depth-1)) { state := sActive}
   }
   .elsewhen (state === sActive)
@@ -77,8 +92,8 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
         // read from input queue
         io.readReq.deq()
         
-        // write to output queue
-        io.readResp.enq(currentReqLineData)
+        // enable write to output FIFO next cycle
+        enableWriteOutputReg := Bool(true)
       }
       // if not valid or no tag match, and can issue memory request
       .elsewhen ((currentReqTag != currentReqLineTag | ~currentReqLineValid) & io.memReq.ready)
@@ -88,6 +103,8 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
         state := sCacheFill
         io.memReq.enq(currentReq)
       }
+      // other cases are not explicitly covered (default values suffice)
+      // TODO a good place for bugs you say?
     }
   }
   .elsewhen (state === sCacheFill)
@@ -100,8 +117,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
       // write returned data to cache
       cacheLines(currentReqInd) := currentMemResp
       // fix tag and valid bits
-      validDirectory(currentReqInd) := UInt(1)
-      tagDirectory(currentReqInd) := currentReqTag
+      tagStorage(currentReqInd) := Cat(currentReqTag, Bits(1, width=1))
       // pop response from queue
       io.memResp.deq()
       // go back to active state
@@ -116,16 +132,17 @@ class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Test
   poke(c.io.memResp.valid, 0)
   poke(c.io.memReq.ready, 1)  // memreq can always accept (infinite memory request FIFO)
   poke(c.io.readResp.ready, 1) // readresp can always accept (infinite datapath FIFO)
-  // check that cacheInitialized starts low
-  expect(c.io.cacheInitialized, 0)
-  // expect cacheInitialized after "depth" cycles
+  expect(c.io.cacheActive, 0)
+  // expect cacheActive after "depth" cycles
   step(depth)
-  expect(c.io.cacheInitialized, 1)
-  for(i <- 1 to 5)
+  expect(c.io.cacheActive, 1)
+  for(i <- 1 to 3)
+  {
     expect(c.io.readResp.valid, 0)  // no read response appears
     expect(c.io.memReq.valid, 0)    // no mem request appears
     expect(c.io.readReq.ready, 0)   // nothing to pop
     step(1)
+  }
   // put in a request
   poke(c.io.readReq.bits, 7)
   poke(c.io.readReq.valid, 1)
@@ -135,37 +152,65 @@ class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Test
   expect(c.io.memReq.bits, 7)
   expect(c.io.memReq.valid, 1)
   step(1)
+  // expect a cache miss to appear in the counters
+  expect(c.io.missCount, 1)
+  expect(c.io.readCount, 0)
+  // cache shouldn't be in sActive now
+  expect(c.io.cacheActive, 0)
   // wait a while
-  for(i <- 1 to 5)
+  for(i <- 1 to 3)
+  {
     expect(c.io.readReq.ready, 0)    // even though memReq.valid=1
     expect(c.io.readResp.valid, 0)  // no read response
     expect(c.io.memResp.ready, 0)   // memResp not arrived yet, can't read
     step(1)
+  }
   // issue memory response
   poke(c.io.memResp.bits, 0x1f)
   poke(c.io.memResp.valid, 1)
   expect(c.io.memResp.ready, 1) // pop reply
   expect(c.io.readResp.valid, 0)  // still no read response - just tag write
-  expect(c.io.readReq.ready, 0)    // will pop in next cycle
+  expect(c.io.readReq.ready, 0) 
   step(1)
   poke(c.io.memResp.valid, 0) // remove mem reply
-  // expect cache read response now
+  // the tag read should now succeed (back to sActive)
+  expect(c.io.cacheActive, 1)
+  // this hit should also pop from the request queue
   expect(c.io.readReq.ready, 1)
+  step(1)
+  // remove request
+  poke(c.io.readReq.valid, 0)
+  expect(c.io.readReq.ready, 0)
+  // expect cache read response and counters
   expect(c.io.readResp.valid, 1)
   expect(c.io.readResp.bits, 0x1f)
   step(1)
-  poke(c.io.readReq.valid, 0)
-  for(i <- 1 to 5)
+  // make sure nothing happens while no request
+  for(i <- 1 to 3)
+  {
     expect(c.io.readResp.valid, 0)  // no read response appears
     expect(c.io.memReq.valid, 0)    // no mem request appears
     expect(c.io.readReq.ready, 0)   // nothing to pop
     step(1)
+  }
   // repeat the same request - this time it should hit
   poke(c.io.readReq.valid, 1)
   poke(c.io.readReq.bits, 7)
-  expect(c.io.readResp.valid, 1)
-  expect(c.io.readResp.bits, 0x1f)
+  expect(c.io.cacheActive, 1)
+  expect(c.io.readReq.ready, 1)
   step(1)
-  poke(c.io.readReq.valid, 0)  
-  step(1)
+  for(i <- 1 to 3)
+  {
+    // keep repeating the same request
+    // should stay in active state & keep hitting
+    expect(c.io.cacheActive, 1)
+    expect(c.io.memReq.valid, 0) // no mem request
+    // check read/miss counters
+    expect(c.io.readCount, i+1) // read count should go up
+    expect(c.io.missCount, 1)   // miss count shouldn't go up
+    // check read response
+    expect(c.io.readResp.valid, 1)
+    expect(c.io.readResp.bits, 0x1f)
+    step(1)     
+  }
 }
