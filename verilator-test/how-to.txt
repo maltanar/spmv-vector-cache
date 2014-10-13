@@ -1,0 +1,8 @@
+1) Make Chisel module
+2) Use the Chisel verilog backend to generate verilog
+3) Remove the ifndef SYNTHESIS parts
+4) Use Verilator to generate SystemC: verilator --sc <verilog_name>
+5) Pluck the generated .cpp and .h files from obj_dir
+6) Grab /usr/share/verilator/include/verilated.cpp
+7) Add VL_PRINTF=printf VM_TRACE=0 VM_COVERAGE=0 to defines
+8) Add VERILATOR_ROOT/include and VERILATOR_ROOT/include/vltstd to includes
