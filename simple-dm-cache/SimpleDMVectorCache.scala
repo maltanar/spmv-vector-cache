@@ -7,12 +7,22 @@ import Literal._
 
 class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   val io = new Bundle {
-    // interface towards processing element
+    // interface towards processing element:
+    // read port
     val readReq = new DeqIO(UInt(width = addrBits))
     val readResp = new EnqIO(UInt(width = lineSize))
-    // interface towards main memory
+    // interface towards processing element:
+    // write port
+    val writeReq = new DeqIO(UInt(width = addrBits))
+    // writeData should be part of writeReq, but Verilator
+    // best handles 1-, 32- and 64-bit widths, so it is separated
+    val writeData = UInt(INPUT, lineSize)
+    // interface towards main memory, read requests
     val memReq = new EnqIO(UInt(width = addrBits))
     val memResp = new DeqIO(UInt(width = lineSize))
+    // interface towards main memory, write requests
+    val memWriteReq = new EnqIO(UInt(width = addrBits))
+    val memWriteData = UInt(OUTPUT, lineSize)
     // init indicator and cache stat outputs
     val cacheActive = Bool(OUTPUT)
     val readCount = UInt(OUTPUT, 32)
@@ -35,27 +45,43 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   val state = Reg(init = UInt(sInit))
   val initCtr = Reg(init = UInt(0, depthBitCount))
   
-  // shorthands for current request
+  // shorthands for current read request
   val currentReq = io.readReq.bits
   val currentReqInd = currentReq(depthBitCount-1, 0)         // lower bits as index
   val currentReqTag = currentReq(addrBits-1, depthBitCount)  // higher bits as tag
   
+  // shorthands for tag/valid data for current read request
   val currentReqEntry = tagStorage(currentReqInd)
   val currentReqLineValid = currentReqEntry(0)               // lowest bit = valid
   val currentReqLineTag = currentReqEntry(tagBitCount, 1)    // other bits = tag
   
+  // shorthands for current write request
+  val currentWriteReq = io.writeReq.bits
+  val currentWriteReqInd = currentWriteReq(depthBitCount-1, 0)
+  val currentWriteReqTag = currentWriteReq(addrBits-1, depthBitCount)
+  
+  // shorthands for tag/valid data for current write request
+  val currentWriteReqEntry = tagStorage(currentWriteReqInd)
+  val currentWriteReqLineValid = currentWriteReqEntry(0)
+  val currentWriteReqLineTag = currentWriteReqEntry(tagBitCount, 1)
+  
   // register address input of cache data
   val enableWriteOutputReg = Reg(init = Bool(false))
-  val bramReadAddrReg = Reg(next = currentReqInd)
+  val bramReadAddrReg = Reg(next = currentReqInd) // to infer FPGA BRAM
   
   io.readResp.bits := cacheLines(bramReadAddrReg)
   io.readResp.valid := enableWriteOutputReg
   
-  // shorthands for current memory response
+  // shorthands for current memory read response
   val currentMemResp = io.memResp.bits
   
   // drive default outputs
   io.cacheActive := (state === sActive)
+  io.writeReq.ready := Bool(false)  // whether cache can accept a write req
+  io.memWriteReq.valid := Bool(false) // no write request to main mem
+  io.memWriteReq.bits := currentWriteReq  // default write miss addr
+  io.memWriteData := io.writeData     // mem write request data comes right from the input
+  io.memReq.valid := Bool(false)    // no read request to main mem
   io.readReq.ready := Bool(false)   // whether cache can accept a read req
   io.memResp.ready := Bool(false)   // whether cache can accept a mem resp
   io.readCount := readCount         // total reads so far (hits = total - misses)
@@ -80,6 +106,30 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   {
     // cache ready to serve requests (no pending misses)
     
+    
+    // write port stuff ----------------------
+    // write port dumps all misses straight to main mem, so it can
+    // always accept as long as the main mem write port is available
+    io.writeReq.ready := io.memWriteReq.ready
+    
+    when (io.writeReq.valid)
+    {
+      when (currentWriteReqTag === currentWriteReqLineTag & currentWriteReqLineValid)
+      {
+        // cache write hit
+        // TODO keep statistics for writes
+        
+        // update data in BRAM
+        cacheLines(currentWriteReqInd) := io.writeData
+      }
+      .otherwise
+      {
+        // cache write miss, issue as write request
+        io.memWriteReq.valid := Bool(true)
+      }
+    }
+    
+    // read port stuff ------------------------
     // if something pending on the input queue
     when (io.readReq.valid)
     {
@@ -109,6 +159,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   }
   .elsewhen (state === sCacheFill)
   {
+    // TODO should we service write requests while in this state?
     // cache is waiting for a pending miss to be served from main mem
     
     // check to see if any responses from memory are pending
@@ -130,7 +181,10 @@ class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Test
   // start with no cache reqs, no mem resps
   poke(c.io.readReq.valid, 0)
   poke(c.io.memResp.valid, 0)
+  poke(c.io.writeReq.valid, 0)
+  
   poke(c.io.memReq.ready, 1)  // memreq can always accept (infinite memory request FIFO)
+  poke(c.io.memWriteReq.ready, 1) // infinite mem req FIFO for writes as well
   poke(c.io.readResp.ready, 1) // readresp can always accept (infinite datapath FIFO)
   expect(c.io.cacheActive, 0)
   // expect cacheActive after "depth" cycles
@@ -138,12 +192,19 @@ class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Test
   expect(c.io.cacheActive, 1)
   for(i <- 1 to 3)
   {
-    expect(c.io.readResp.valid, 0)  // no read response appears
-    expect(c.io.memReq.valid, 0)    // no mem request appears
-    expect(c.io.readReq.ready, 0)   // nothing to pop
+    expect(c.io.readResp.valid, 0)    // no read response appears
+    expect(c.io.memReq.valid, 0)      // no mem request appears
+    expect(c.io.memWriteReq.valid, 0) // no mem write req
+    expect(c.io.readReq.ready, 0)     // nothing to pop from reads
+    expect(c.io.writeReq.ready, 1)    // since memWriteReq is ready
     step(1)
   }
-  // put in a request
+  // put in a write request
+  poke(c.io.writeReq.bits, 9)
+  poke(c.io.writeReq.valid, 1)
+  poke(c.io.writeData, 111)
+  
+  // put in a read request
   poke(c.io.readReq.bits, 7)
   poke(c.io.readReq.valid, 1)
 	// this will be a cache miss (nothing in cache)
@@ -151,6 +212,11 @@ class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Test
   // (since tag reads/miss checks are combinational)
   expect(c.io.memReq.bits, 7)
   expect(c.io.memReq.valid, 1)
+  // similarly, the write req should also miss and cause
+  // a memory request
+  expect(c.io.memWriteReq.valid, 1)
+  expect(c.io.memWriteReq.bits, 9)
+  expect(c.io.memWriteData, 111)
   step(1)
   // expect a cache miss to appear in the counters
   expect(c.io.missCount, 1)
@@ -163,6 +229,8 @@ class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Test
     expect(c.io.readReq.ready, 0)    // even though memReq.valid=1
     expect(c.io.readResp.valid, 0)  // no read response
     expect(c.io.memResp.ready, 0)   // memResp not arrived yet, can't read
+    expect(c.io.writeReq.ready, 0)  // can't do writes while blocked on read
+    expect(c.io.memWriteReq.valid, 0)
     step(1)
   }
   // issue memory response
