@@ -11,6 +11,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
     // read port
     val readReq = new DeqIO(UInt(width = addrBits))
     val readResp = new EnqIO(UInt(width = lineSize))
+    // readRespInd should be part of readResp, but Verilator sizes...
     val readRespInd = UInt(width = addrBits)
     // interface towards processing element:
     // write port
