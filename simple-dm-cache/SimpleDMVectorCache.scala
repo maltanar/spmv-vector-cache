@@ -11,6 +11,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
     // read port
     val readReq = new DeqIO(UInt(width = addrBits))
     val readResp = new EnqIO(UInt(width = lineSize))
+    val readRespInd = UInt(width = addrBits)
     // interface towards processing element:
     // write port
     val writeReq = new DeqIO(UInt(width = addrBits))
@@ -65,12 +66,16 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   val currentWriteReqLineValid = currentWriteReqEntry(0)
   val currentWriteReqLineTag = currentWriteReqEntry(tagBitCount, 1)
   
-  // register address input of cache data
+  // register to enable writing to read response FIFO
   val enableWriteOutputReg = Reg(init = Bool(false))
-  val bramReadAddrReg = Reg(next = currentReqInd) // to infer FPGA BRAM
+  // register current request (registered reads to infer FPGA BRAM)
+  val requestReg = Reg(next = currentReq)
+  val bramReadAddr = requestReg(depthBitCount-1, 0)
   
-  io.readResp.bits := cacheLines(bramReadAddrReg)
+  io.readResp.bits := cacheLines(bramReadAddr)
   io.readResp.valid := enableWriteOutputReg
+  
+  io.readRespInd := requestReg
   
   // shorthands for current memory read response
   val currentMemResp = io.memResp.bits
@@ -251,7 +256,8 @@ class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Test
   expect(c.io.readReq.ready, 0)
   // expect cache read response and counters
   expect(c.io.readResp.valid, 1)
-  expect(c.io.readResp.bits, 0x1f)
+  expect(c.io.readResp.bits, 0x1f)  // returned data
+  expect(c.io.readRespInd, 7)   // returned index
   step(1)
   // make sure nothing happens while no request
   for(i <- 1 to 3)
