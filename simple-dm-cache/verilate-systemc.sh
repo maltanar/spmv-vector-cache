@@ -4,6 +4,8 @@ SRC_DIR="/home/maltanar/sandbox/spmv-vector-cache/simple-dm-cache"
 WORK_DIR="/home/maltanar/sandbox/build-verilator"
 TARGET_DIR="/home/maltanar/sandbox/spmv-cache-systemc"
 
+export SYSTEMC_INCLUDE="/home/maltanar/systemc/include"
+export SYSTEMC_LIBDIR="/home/maltanar/systemc/lib-linux64"
 
 mkdir -p $WORK_DIR
 mkdir -p $TARGET_DIR
