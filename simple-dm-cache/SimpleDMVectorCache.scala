@@ -28,11 +28,15 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
     // init indicator and cache stat outputs
     val cacheActive = Bool(OUTPUT)
     val readCount = UInt(OUTPUT, 32)
-    val missCount = UInt(OUTPUT, 32)
+    val readMissCount = UInt(OUTPUT, 32)
+    val writeCount = UInt(OUTPUT, 32)
+    val writeMissCount = UInt(OUTPUT, 32)
   }
   // registers for read/miss counts
   val readCount = Reg(init = UInt(0, 32))
-  val missCount = Reg(init = UInt(0, 32))
+  val writeCount = Reg(init = UInt(0, 32))
+  val readMissCount = Reg(init = UInt(0, 32))
+  val writeMissCount = Reg(init = UInt(0, 32))
   
   // memory for keeping cache state
   val depthBitCount = log2Up(depth)
@@ -90,8 +94,12 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   io.memReq.valid := Bool(false)    // no read request to main mem
   io.readReq.ready := Bool(false)   // whether cache can accept a read req
   io.memResp.ready := Bool(false)   // whether cache can accept a mem resp
+  
+  // drive outputs for counters
   io.readCount := readCount         // total reads so far (hits = total - misses)
-  io.missCount := missCount         // total misses so far
+  io.readMissCount := readMissCount         // total read misses so far
+  io.writeCount := writeCount     // total writes so far
+  io.writeMissCount := writeMissCount   // total write misses so far
   
   // default next-values for registers
   enableWriteOutputReg := Bool(false)
@@ -123,15 +131,19 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
       when (currentWriteReqTag === currentWriteReqLineTag & currentWriteReqLineValid)
       {
         // cache write hit
-        // TODO keep statistics for writes
+        // keep statistics for writes
+        writeCount := writeCount + UInt(1)
         
         // update data in BRAM
         cacheLines(currentWriteReqInd) := io.writeData
       }
-      .otherwise
+      .elsewhen (io.memWriteReq.ready)
       {
         // cache write miss, issue as write request
         io.memWriteReq.valid := Bool(true)
+        // keep statistics for writes
+        writeCount := writeCount + UInt(1)
+        writeMissCount := writeMissCount + UInt(1)
       }
     }
     
@@ -155,7 +167,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
       .elsewhen ((currentReqTag != currentReqLineTag | ~currentReqLineValid) & io.memReq.ready)
       {
         // cache miss
-        missCount := missCount + UInt(1)
+        readMissCount := readMissCount + UInt(1)
         state := sCacheFill
         io.memReq.enq(currentReq)
       }
@@ -184,6 +196,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
 }
 
 class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Tester(c) {
+  // TODO add some proper write testing
   // start with no cache reqs, no mem resps
   poke(c.io.readReq.valid, 0)
   poke(c.io.memResp.valid, 0)
@@ -225,8 +238,10 @@ class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Test
   expect(c.io.memWriteData, 111)
   step(1)
   // expect a cache miss to appear in the counters
-  expect(c.io.missCount, 1)
+  expect(c.io.readMissCount, 1)
   expect(c.io.readCount, 0)
+  expect(c.io.writeCount, 1)
+  expect(c.io.writeMissCount, 1)
   // cache shouldn't be in sActive now
   expect(c.io.cacheActive, 0)
   // wait a while
@@ -282,7 +297,7 @@ class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Test
     expect(c.io.memReq.valid, 0) // no mem request
     // check read/miss counters
     expect(c.io.readCount, i+1) // read count should go up
-    expect(c.io.missCount, 1)   // miss count shouldn't go up
+    expect(c.io.readMissCount, 1)   // miss count shouldn't go up
     // check read response
     expect(c.io.readResp.valid, 1)
     expect(c.io.readResp.bits, 0x1f)
