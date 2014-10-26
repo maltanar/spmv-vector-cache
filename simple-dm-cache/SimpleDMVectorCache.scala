@@ -146,7 +146,9 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
       io.memWriteData := flushDataReg
       
       // go to sActive when all blocks flushed
-      when (initCtr === UInt(depth-1)) { state := sActive}
+      // when initCtr is 0 (overflow) we have reached the
+      // last block, since we read the index initCtr-1
+      when (initCtr === UInt(0)) { state := sActive}
     }
   }
   .elsewhen (state === sActive)
