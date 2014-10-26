@@ -80,6 +80,9 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   val bramReadAddr = requestReg(depthBitCount-1, 0)
   val bramReadValue = cacheLines(bramReadAddr)
   
+  // register for cache flushing
+  val flushDataReg = Reg(next = cacheLines(initCtr))
+  
   io.readResp.bits := bramReadValue
   io.readResp.valid := enableWriteOutputReg
   
@@ -133,6 +136,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
       
       io.memWriteReq.valid := flushValid
       io.memWriteReq.bits := Cat(flushTag, initCtr)
+      io.memWriteData := flushDataReg
       
       // go to sActive when all blocks flushed
     when (initCtr === UInt(depth-1)) { state := sActive}
