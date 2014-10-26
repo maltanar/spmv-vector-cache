@@ -129,18 +129,20 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   {
     // this state only exists to "prefetch" the line 0 content
     state := sCacheFlush
+    initCtr := initCtr + UInt(1)
   }
   .elsewhen (state === sCacheFlush)
   {
     when (io.memWriteReq.ready)
     {
       initCtr := initCtr + UInt(1)
-      val lineToFlush = tagStorage(initCtr)
+      val fetchedInd = initCtr - UInt(1)
+      val lineToFlush = tagStorage(fetchedInd)
       val flushValid = lineToFlush(0)
       val flushTag = lineToFlush(tagBitCount, 1)
       
       io.memWriteReq.valid := flushValid
-      io.memWriteReq.bits := Cat(flushTag, initCtr)
+      io.memWriteReq.bits := Cat(flushTag, fetchedInd)
       io.memWriteData := flushDataReg
       
       // go to sActive when all blocks flushed
