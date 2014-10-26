@@ -25,6 +25,8 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
     // interface towards main memory, write requests
     val memWriteReq = new EnqIO(UInt(width = addrBits))
     val memWriteData = UInt(OUTPUT, lineSize)
+    // flush cache
+    val flushCache = Bool(INPUT)
     // init indicator and cache stat outputs
     val cacheActive = Bool(OUTPUT)
     val readCount = UInt(OUTPUT, 32)
@@ -47,7 +49,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   // enable sequential reads for data storage (to infer BRAM)
   val cacheLines = Mem(UInt(width=lineSize), depth, true)
   
-  val sInit :: sActive :: sEvictWrite :: sCacheFill :: Nil = Enum(UInt(), 4)
+  val sInit :: sActive :: sEvictWrite :: sCacheFill :: sCacheFlush :: Nil = Enum(UInt(), 5)
   val state = Reg(init = UInt(sInit))
   val initCtr = Reg(init = UInt(0, depthBitCount))
   
@@ -108,78 +110,105 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   when (state === sInit)
   {
     // unset all valid bit in cache at init time
-    // TODO FPGA mem can be initialized at config time, so this is
-    // commented out
-    // reset every valid bit in the cache
+    // TODO FPGA mem can be initialized at config time, this state
+    // can be removed
     
+    // reset every valid bit in the cache
+    tagStorage(initCtr) := UInt(0)
+    
+    // increment the initialization counter
     initCtr := initCtr + UInt(1)
     
     // go to sActive when all blocks initialized
     when (initCtr === UInt(depth-1)) { state := sActive}
   }
+  .elsewhen (state === sCacheFlush)
+  {
+    when (io.memWriteReq.ready)
+    {
+      initCtr := initCtr + UInt(1)
+      val lineToFlush = tagStorage(initCtr)
+      val flushValid = lineToFlush(0)
+      val flushTag = lineToFlush(tagBitCount, 1)
+      
+      io.memWriteReq.valid := flushValid
+      io.memWriteReq.bits := Cat(flushTag, initCtr)
+      
+      // go to sActive when all blocks flushed
+    when (initCtr === UInt(depth-1)) { state := sActive}
+    }
+  }
   .elsewhen (state === sActive)
   {
-    // cache ready to serve requests (no pending misses)
-    
-    
-    // write port stuff ----------------------
-    // write port dumps all misses straight to main mem, so it can
-    // always accept as long as the main mem write port is available
-    io.writeReq.ready := io.memWriteReq.ready
-    
-    when (io.writeReq.valid)
+    when (io.flushCache)
     {
-      when (currentWriteReqTag === currentWriteReqLineTag & currentWriteReqLineValid)
-      {
-        // cache write hit
-        // keep statistics for writes
-        writeCount := writeCount + UInt(1)
-        
-        // update data in BRAM
-        cacheLines(currentWriteReqInd) := io.writeData
-      }
-      .elsewhen (io.memWriteReq.ready)
-      {
-        // cache write miss, issue as write request
-        io.memWriteReq.valid := Bool(true)
-        // keep statistics for writes
-        writeCount := writeCount + UInt(1)
-        writeMissCount := writeMissCount + UInt(1)
-      }
+      // flush the cache
+      state := sCacheFlush
+      initCtr := UInt(0)
     }
-    
-    // read port stuff ------------------------
-    // if something pending on the input queue
-    when (io.readReq.valid)
+    .otherwise
     {
-      // if valid and tag match and space on output queue
-      when (currentReqTag === currentReqLineTag & currentReqLineValid & io.readResp.ready)
+      // no flush requested, cache ready to serve requests (no pending misses)
+      
+      // write port stuff ----------------------
+      // write port dumps all misses straight to main mem, so it can
+      // always accept as long as the main mem write port is available
+      io.writeReq.ready := io.memWriteReq.ready
+
+      when (io.writeReq.valid)
       {
-        // cache hit!
-        readCount := readCount + UInt(1)
-        
-        // read from input queue
-        io.readReq.deq()
-        
-        // enable write to output FIFO next cycle
-        enableWriteOutputReg := Bool(true)
+        when (currentWriteReqTag === currentWriteReqLineTag & currentWriteReqLineValid)
+        {
+          // cache write hit
+          // keep statistics for writes
+          writeCount := writeCount + UInt(1)
+          
+          // update data in BRAM
+          cacheLines(currentWriteReqInd) := io.writeData
+        }
+        .elsewhen (io.memWriteReq.ready)
+        {
+          // cache write miss, issue as write request
+          io.memWriteReq.valid := Bool(true)
+          // keep statistics for writes
+          writeCount := writeCount + UInt(1)
+          writeMissCount := writeMissCount + UInt(1)
+        }
       }
-      // read miss case, no eviction (cold cacheline)
-      .elsewhen (~currentReqLineValid & io.memReq.ready)
+
+      // read port stuff ------------------------
+      // if something pending on the input queue
+      when (io.readReq.valid)
       {
-        readMissCount := readMissCount + UInt(1)
-        state := sCacheFill
-        io.memReq.enq(currentReq)
+        // if valid and tag match and space on output queue
+        when (currentReqTag === currentReqLineTag & currentReqLineValid & io.readResp.ready)
+        {
+          // cache hit!
+          readCount := readCount + UInt(1)
+          
+          // read from input queue
+          io.readReq.deq()
+          
+          // enable write to output FIFO next cycle
+          enableWriteOutputReg := Bool(true)
+        }
+        // read miss case, no eviction (cold cacheline)
+        .elsewhen (~currentReqLineValid & io.memReq.ready)
+        {
+          readMissCount := readMissCount + UInt(1)
+          state := sCacheFill
+          io.memReq.enq(currentReq)
+        }
+        // read miss, with eviction
+        .elsewhen (currentReqTag != currentReqLineTag & io.memReq.ready)
+        {
+          readMissCount := readMissCount + UInt(1)
+          state := sEvictWrite
+          io.memReq.enq(currentReq)
+        }
+        // other cases are not explicitly covered (default values suffice)
+        // TODO a good place for bugs you say?
       }
-      // read miss, with eviction
-      .elsewhen (currentReqTag != currentReqLineTag & io.memReq.ready)
-      {
-        readMissCount := readMissCount + UInt(1)
-        state := sEvictWrite
-        io.memReq.enq(currentReq)
-      }
-      // other cases are not explicitly covered (default values suffice)
-      // TODO a good place for bugs you say?
     }
   }
   .elsewhen (state === sEvictWrite)
@@ -227,6 +256,7 @@ class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Test
   poke(c.io.readReq.valid, 0)
   poke(c.io.memResp.valid, 0)
   poke(c.io.writeReq.valid, 0)
+  poke(c.io.flushCache, 0)
   
   poke(c.io.memReq.ready, 1)  // memreq can always accept (infinite memory request FIFO)
   poke(c.io.memWriteReq.ready, 1) // infinite mem req FIFO for writes as well
