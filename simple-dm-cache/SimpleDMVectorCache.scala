@@ -49,7 +49,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   // enable sequential reads for data storage (to infer BRAM)
   val cacheLines = Mem(UInt(width=lineSize), depth, true)
   
-  val sInit :: sActive :: sEvictWrite :: sCacheFill :: sCacheFlush :: Nil = Enum(UInt(), 5)
+  val sInit :: sActive :: sEvictWrite :: sCacheFill :: sInitCacheFlush :: sCacheFlush :: Nil = Enum(UInt(), 6)
   val state = Reg(init = UInt(sInit))
   val initCtr = Reg(init = UInt(0, depthBitCount))
   
@@ -125,6 +125,11 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
     // go to sActive when all blocks initialized
     when (initCtr === UInt(depth-1)) { state := sActive}
   }
+  .elsewhen (state === sInitCacheFlush)
+  {
+    // this state only exists to "prefetch" the line 0 content
+    state := sCacheFlush
+  }
   .elsewhen (state === sCacheFlush)
   {
     when (io.memWriteReq.ready)
@@ -139,7 +144,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
       io.memWriteData := flushDataReg
       
       // go to sActive when all blocks flushed
-    when (initCtr === UInt(depth-1)) { state := sActive}
+      when (initCtr === UInt(depth-1)) { state := sActive}
     }
   }
   .elsewhen (state === sActive)
@@ -147,7 +152,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
     when (io.flushCache)
     {
       // flush the cache
-      state := sCacheFlush
+      state := sInitCacheFlush
       initCtr := UInt(0)
     }
     .otherwise
