@@ -47,7 +47,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   // enable sequential reads for data storage (to infer BRAM)
   val cacheLines = Mem(UInt(width=lineSize), depth, true)
   
-  val sInit :: sActive :: sCacheFill :: Nil = Enum(UInt(), 3)
+  val sInit :: sActive :: sEvictWrite :: sCacheFill :: Nil = Enum(UInt(), 4)
   val state = Reg(init = UInt(sInit))
   val initCtr = Reg(init = UInt(0, depthBitCount))
   
@@ -76,8 +76,9 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   // register current request (registered reads to infer FPGA BRAM)
   val requestReg = Reg(next = currentReq)
   val bramReadAddr = requestReg(depthBitCount-1, 0)
+  val bramReadValue = cacheLines(bramReadAddr)
   
-  io.readResp.bits := cacheLines(bramReadAddr)
+  io.readResp.bits := bramReadValue
   io.readResp.valid := enableWriteOutputReg
   
   io.readRespInd := requestReg
@@ -163,23 +164,41 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
         // enable write to output FIFO next cycle
         enableWriteOutputReg := Bool(true)
       }
-      // if not valid or no tag match, and can issue memory request
-      .elsewhen ((currentReqTag != currentReqLineTag | ~currentReqLineValid) & io.memReq.ready)
+      // read miss case, no eviction (cold cacheline)
+      .elsewhen (~currentReqLineValid & io.memReq.ready)
       {
-        // cache miss
         readMissCount := readMissCount + UInt(1)
         state := sCacheFill
+        io.memReq.enq(currentReq)
+      }
+      // read miss, with eviction
+      .elsewhen (currentReqTag != currentReqLineTag & io.memReq.ready)
+      {
+        readMissCount := readMissCount + UInt(1)
+        state := sEvictWrite
         io.memReq.enq(currentReq)
       }
       // other cases are not explicitly covered (default values suffice)
       // TODO a good place for bugs you say?
     }
   }
+  .elsewhen (state === sEvictWrite)
+  {
+    when (io.memWriteReq.ready)
+    {
+      // write the evicted read data
+      // evicted address = line tag + current index
+      io.memWriteReq.enq(Cat(currentReqLineTag, currentReqInd))
+      // read evicted data from BRAM
+      io.memWriteData := bramReadValue
+      state := sCacheFill
+    }
+  }
   .elsewhen (state === sCacheFill)
   {
     // TODO should we service write requests while in this state?
     // cache is waiting for a pending miss to be served from main mem
-    
+   
     // check to see if any responses from memory are pending
     when (io.memResp.valid)
     {
@@ -197,6 +216,13 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
 
 class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Tester(c) {
   // TODO add some proper write testing
+  // these tests should include:
+  // - read cold miss
+  // - read hit
+  // - read conflict miss
+  // - write hit
+  // - write miss
+  
   // start with no cache reqs, no mem resps
   poke(c.io.readReq.valid, 0)
   poke(c.io.memResp.valid, 0)
