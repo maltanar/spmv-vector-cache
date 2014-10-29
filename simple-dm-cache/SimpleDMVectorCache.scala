@@ -11,8 +11,12 @@ import CacheInterface._
 class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   val io = new SinglePortCacheIF(addrBits, lineSize)
   val controller = Module(new CacheController(lineSize, depth, addrBits))
+  val dataMem = Module(new CacheDataMemory(lineSize, depth, addrBits))
   
-  io <> controller.io
+  io <> controller.io.externalIF
+  
+  controller.io.dataPortA <> dataMem.io.portA
+  controller.io.dataPortB <> dataMem.io.portB
 }
 
 class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Tester(c) {

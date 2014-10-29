@@ -10,7 +10,14 @@ import CacheInterface._
 // ensure FIFO queues at all input and output to avoid combinational loops
 
 class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
-  val io = new SinglePortCacheIF(addrBits, lineSize)
+  val io = new Bundle {
+    // ports towards processor and main mem
+    val externalIF = new SinglePortCacheIF(addrBits, lineSize)
+    
+    // ports towards the data memory
+    val dataPortA = new CacheDataReadWritePort(lineSize, addrBits).flip // for read reqs
+    val dataPortB = new CacheDataReadWritePort(lineSize, addrBits).flip // for write reqs
+  }
   
   // registers for read/miss counts
   val readCount = Reg(init = UInt(0, 32))
@@ -24,15 +31,13 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
 
   // combinational-read memory for tag and valid (LUTRAM)
   val tagStorage = Mem(UInt(width=tagBitCount+1), depth, false)
-  // enable sequential reads for data storage (to infer BRAM)
-  val cacheLines = Mem(UInt(width=lineSize), depth, true)
   
   val sInit :: sActive :: sFinishPendingWrites :: sIssueReadReq :: sEvictWrite :: sCacheFill :: sInitCacheFlush :: sCacheFlush :: Nil = Enum(UInt(), 8)
   val state = Reg(init = UInt(sInit))
   val initCtr = Reg(init = UInt(0, depthBitCount))
   
   // shorthands for current read request
-  val currentReq = io.readPort.readReq.bits
+  val currentReq = io.externalIF.readPort.readReq.bits
   val currentReqInd = currentReq(depthBitCount-1, 0)         // lower bits as index
   val currentReqTag = currentReq(addrBits-1, depthBitCount)  // higher bits as tag
   
@@ -42,52 +47,55 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   val currentReqLineTag = currentReqEntry(tagBitCount, 1)    // other bits = tag
   
   // shorthands for current write request
-  val currentWriteReq = io.writePort.writeReq.bits
+  val currentWriteReq = io.externalIF.writePort.writeReq.bits
   val currentWriteReqInd = currentWriteReq(depthBitCount-1, 0)
   val currentWriteReqTag = currentWriteReq(addrBits-1, depthBitCount)
+  val currentWriteReqData = io.externalIF.writePort.writeData
   
   // shorthands for tag/valid data for current write request
   val currentWriteReqEntry = tagStorage(currentWriteReqInd)
   val currentWriteReqLineValid = currentWriteReqEntry(0)
   val currentWriteReqLineTag = currentWriteReqEntry(tagBitCount, 1)
   
-  // register to enable writing to read response FIFO
-  val enableWriteOutputReg = Reg(init = Bool(false))
-  // register current request (registered reads to infer FPGA BRAM)
-  val requestReg = Reg(next = currentReq)
-  val bramReadAddr = requestReg(depthBitCount-1, 0)
-  val bramReadValue = cacheLines(bramReadAddr)
-  
-  // register for cache flushing
-  val flushDataReg = Reg(next = cacheLines(initCtr))
-  
-  io.readPort.readResp.bits := bramReadValue
-  io.readPort.readResp.valid := enableWriteOutputReg
-  
-  io.readPort.readRespInd := requestReg
-  
   // shorthands for current memory read response
-  val currentMemResp = io.memRead.memResp.bits
+  val currentMemResp = io.externalIF.memRead.memResp.bits
+  
+  // read request handling
+  val prevReadRequestReg = Reg(next = currentReq) // for driving readRespInd next cycle
+  val enableReadRespReg = Reg(init = Bool(false))
+  // data port A is dedicated to read requests
+  io.dataPortA.addr := currentReqInd
+  io.dataPortA.dataIn := currentMemResp // for read miss replacement
+  io.dataPortA.writeEn := Bool(false)
+  // data port B is dedicated to write requests
+  io.dataPortB.addr := currentWriteReqInd
+  io.dataPortB.dataIn := currentWriteReqData
+  io.dataPortB.writeEn := Bool(false)
+  
+  // drive read response outputs
+  io.externalIF.readPort.readResp.bits := io.dataPortA.dataOut
+  io.externalIF.readPort.readResp.valid := enableReadRespReg
+  io.externalIF.readPort.readRespInd := prevReadRequestReg
   
   // drive default outputs
-  io.cacheActive := (state === sActive)
-  io.writePort.writeReq.ready := Bool(false)  // whether cache can accept a write req
-  io.memWrite.memWriteReq.valid := Bool(false) // no write request to main mem
-  io.memWrite.memWriteReq.bits := currentWriteReq  // default write miss addr
-  io.memWrite.memWriteData := io.writePort.writeData     // mem write request data comes right from the input
-  io.memRead.memReq.valid := Bool(false)    // no read request to main mem
-  io.memRead.memReq.bits := currentReq
-  io.readPort.readReq.ready := Bool(false)   // whether cache can accept a read req
-  io.memRead.memResp.ready := Bool(false)   // whether cache can accept a mem resp
+  io.externalIF.cacheActive := (state === sActive)
+  io.externalIF.writePort.writeReq.ready := Bool(false)  // whether cache can accept a write req
+  io.externalIF.memWrite.memWriteReq.valid := Bool(false) // no write request to main mem
+  io.externalIF.memWrite.memWriteReq.bits := currentWriteReq  // default write miss addr
+  io.externalIF.memWrite.memWriteData := io.externalIF.writePort.writeData     // mem write request data comes right from the input
+  io.externalIF.memRead.memReq.valid := Bool(false)    // no read request to main mem
+  io.externalIF.memRead.memReq.bits := currentReq
+  io.externalIF.readPort.readReq.ready := Bool(false)   // whether cache can accept a read req
+  io.externalIF.memRead.memResp.ready := Bool(false)   // whether cache can accept a mem resp
   
   // drive outputs for counters
-  io.readCount := readCount         // total reads so far (hits = total - misses)
-  io.readMissCount := readMissCount         // total read misses so far
-  io.writeCount := writeCount     // total writes so far
-  io.writeMissCount := writeMissCount   // total write misses so far
+  io.externalIF.readCount := readCount         // total reads so far (hits = total - misses)
+  io.externalIF.readMissCount := readMissCount         // total read misses so far
+  io.externalIF.writeCount := writeCount     // total writes so far
+  io.externalIF.writeMissCount := writeMissCount   // total write misses so far
   
   // default next-values for registers
-  enableWriteOutputReg := Bool(false)
+  enableReadRespReg := Bool(false)
   
   when (state === sInit)
   {
@@ -106,13 +114,18 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   }
   .elsewhen (state === sInitCacheFlush)
   {
-    // this state only exists to "prefetch" the line 0 content
-    state := sCacheFlush
+    // this state only exists to "prefetch" the line 0 content from cache data mem
+    io.dataPortA.addr := initCtr
     initCtr := initCtr + UInt(1)
+    state := sCacheFlush
   }
   .elsewhen (state === sCacheFlush)
   {
-    when (io.memWrite.memWriteReq.ready)
+    // use initCtr as cache mem read address
+    // data will be available next cycle
+    io.dataPortA.addr := initCtr
+    
+    when (io.externalIF.memWrite.memWriteReq.ready)
     {
       initCtr := initCtr + UInt(1)
       val fetchedInd = initCtr - UInt(1)
@@ -120,9 +133,9 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
       val flushValid = lineToFlush(0)
       val flushTag = lineToFlush(tagBitCount, 1)
       
-      io.memWrite.memWriteReq.valid := flushValid
-      io.memWrite.memWriteReq.bits := Cat(flushTag, fetchedInd)
-      io.memWrite.memWriteData := flushDataReg
+      io.externalIF.memWrite.memWriteReq.valid := flushValid
+      io.externalIF.memWrite.memWriteReq.bits := Cat(flushTag, fetchedInd)
+      io.externalIF.memWrite.memWriteData := io.dataPortA.dataOut
       
       // go to sActive when all blocks flushed
       // when initCtr is 0 (overflow) we have reached the
@@ -132,7 +145,7 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   }
   .elsewhen (state === sActive)
   {
-    when (io.flushCache)
+    when (io.externalIF.flushCache)
     {
       // flush the cache
       state := sInitCacheFlush
@@ -145,9 +158,9 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
       // write port stuff ----------------------
       // write port dumps all misses straight to main mem, so it can
       // always accept as long as the main mem write port is available
-      io.writePort.writeReq.ready := io.memWrite.memWriteReq.ready
+      io.externalIF.writePort.writeReq.ready := io.externalIF.memWrite.memWriteReq.ready
 
-      when (io.writePort.writeReq.valid)
+      when (io.externalIF.writePort.writeReq.valid)
       {
         when (currentWriteReqTag === currentWriteReqLineTag & currentWriteReqLineValid)
         {
@@ -156,12 +169,12 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
           writeCount := writeCount + UInt(1)
           
           // update data in BRAM
-          cacheLines(currentWriteReqInd) := io.writePort.writeData
+          io.dataPortB.writeEn := Bool(true)
         }
-        .elsewhen (io.memWrite.memWriteReq.ready)
+        .elsewhen (io.externalIF.memWrite.memWriteReq.ready)
         {
-          // cache write miss, issue as write request
-          io.memWrite.memWriteReq.valid := Bool(true)
+          // cache write miss, issue as main memory write request
+          io.externalIF.memWrite.memWriteReq.valid := Bool(true)
           // keep statistics for writes
           writeCount := writeCount + UInt(1)
           writeMissCount := writeMissCount + UInt(1)
@@ -170,19 +183,19 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
 
       // read port stuff ------------------------
       // if something pending on the input queue
-      when (io.readPort.readReq.valid)
+      when (io.externalIF.readPort.readReq.valid)
       {
         // if valid and tag match and space on output queue
-        when (currentReqTag === currentReqLineTag & currentReqLineValid & io.readPort.readResp.ready)
+        when (currentReqTag === currentReqLineTag & currentReqLineValid & io.externalIF.readPort.readResp.ready)
         {
           // cache hit!
           readCount := readCount + UInt(1)
           
           // read from input queue
-          io.readPort.readReq.ready := Bool(true)
+          io.externalIF.readPort.readReq.ready := Bool(true)
           
           // enable write to output FIFO next cycle
-          enableWriteOutputReg := Bool(true)
+          enableReadRespReg := Bool(true)
         }
         .elsewhen (currentReqTag != currentReqLineTag || ~currentReqLineValid)
         {
@@ -203,9 +216,9 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
     
     // writes can always proceed if space available on the
     // memWriteReq queue
-    io.writePort.writeReq.ready := io.memWrite.memWriteReq.ready
+    io.externalIF.writePort.writeReq.ready := io.externalIF.memWrite.memWriteReq.ready
     
-    when (io.writePort.writeReq.valid)
+    when (io.externalIF.writePort.writeReq.valid)
     {
       // pending writes to be serviced
       when (currentWriteReqTag === currentWriteReqLineTag & currentWriteReqLineValid)
@@ -215,12 +228,12 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
         writeCount := writeCount + UInt(1)
         
         // update data in BRAM
-        cacheLines(currentWriteReqInd) := io.writePort.writeData
+        io.dataPortB.writeEn := Bool(true)
       }
-      .elsewhen (io.memWrite.memWriteReq.ready)
+      .elsewhen (io.externalIF.memWrite.memWriteReq.ready)
       {
         // cache write miss, issue as write request
-        io.memWrite.memWriteReq.valid := Bool(true)
+        io.externalIF.memWrite.memWriteReq.valid := Bool(true)
         // keep statistics for writes
         writeCount := writeCount + UInt(1)
         writeMissCount := writeMissCount + UInt(1)
@@ -235,21 +248,21 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   .elsewhen (state === sIssueReadReq)
   {
     // enqueue the read miss
-    io.memRead.memReq.valid := Bool(true)
+    io.externalIF.memRead.memReq.valid := Bool(true)
     // go to sEvictWrite state, figure out cold
     // cacheline misses there
     state := sEvictWrite
   }
   .elsewhen (state === sEvictWrite)
   {
-    when (io.memWrite.memWriteReq.ready)
+    when (io.externalIF.memWrite.memWriteReq.ready)
     {
       // write the evicted read data if it was valid
-      io.memWrite.memWriteReq.valid := currentReqLineValid
+      io.externalIF.memWrite.memWriteReq.valid := currentReqLineValid
       // evicted address = line tag + current index
-      io.memWrite.memWriteReq.bits := Cat(currentReqLineTag, currentReqInd)
+      io.externalIF.memWrite.memWriteReq.bits := Cat(currentReqLineTag, currentReqInd)
       // read evicted data from BRAM
-      io.memWrite.memWriteData := bramReadValue
+      io.externalIF.memWrite.memWriteData := io.dataPortA.dataOut
       state := sCacheFill
     }
   }
@@ -257,20 +270,19 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   {
     // cache is waiting for a pending miss to be served from main mem
     // pop response from queue
-    io.memRead.memResp.ready := Bool(true)
+    io.externalIF.memRead.memResp.ready := Bool(true)
    
     // check to see if any responses from memory are pending
-    when (io.memRead.memResp.valid)
+    when (io.externalIF.memRead.memResp.valid)
     {
-      // write returned data to cache
-      cacheLines(currentReqInd) := currentMemResp
+      // write returned data to cache through portA
+      io.dataPortA.writeEn := Bool(true)
+      
       // fix tag and valid bits
       tagStorage(currentReqInd) := Cat(currentReqTag, Bits(1, width=1))
       
       // go back to active state
       state := sActive
     }
-  }
-  
-  
+  }  
 }
