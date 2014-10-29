@@ -9,7 +9,7 @@ import CacheInterface._
 // ensure FIFO queues at all input and output to avoid combinational loops
 
 class ColdMissSkipVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Module {
-  val io = new SinglePortCacheIF(addrBits, lineSize)
+  val io = new SinglePortCache_ColdMissSkip_IF(addrBits, lineSize)
   val controller = Module(new CacheController(lineSize, depth, addrBits))
   val dataMem = Module(new CacheDataMemory(lineSize, depth, addrBits))
   val tagMem = Module(new CacheTagMemory(lineSize, depth, addrBits))

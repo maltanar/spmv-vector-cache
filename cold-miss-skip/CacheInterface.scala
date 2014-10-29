@@ -19,14 +19,14 @@ class CacheDataReadPort(lineSize: Int, addrBits: Int) extends Bundle {
   override def clone = { new CacheDataReadPort(lineSize,addrBits).asInstanceOf[this.type] }
 }
 
-class CacheReadPortIF(addrBits: Int, lineSize: Int) extends Bundle {
-  // read request port
-  val readReq = Decoupled(UInt(width = addrBits)).flip
+class CacheReadPort_ColdMissSkip_IF(addrBits: Int, lineSize: Int) extends Bundle {
+  // read request port - extra 1 bit for marking start-of-row elements
+  val readReq = Decoupled(UInt(width = addrBits + 1)).flip
   // read response data
   val readResp = Decoupled(UInt(width = lineSize))
   // read response addr (follows readResp)
   val readRespInd = UInt(OUTPUT, width = addrBits) 
-  override def clone = { new CacheReadPortIF(addrBits,lineSize).asInstanceOf[this.type] }
+  override def clone = { new CacheReadPort_ColdMissSkip_IF(addrBits,lineSize).asInstanceOf[this.type] }
 }
 
 class CacheWritePortIF(addrBits: Int, lineSize: Int) extends Bundle {
@@ -55,9 +55,9 @@ class MainMemWritePortIF(addrBits: Int, lineSize: Int) extends Bundle {
   override def clone = { new MainMemWritePortIF(addrBits,lineSize).asInstanceOf[this.type] }
 }
 
-class SinglePortCacheIF(addrBits: Int, lineSize: Int) extends Bundle {
+class SinglePortCache_ColdMissSkip_IF(addrBits: Int, lineSize: Int) extends Bundle {
   // interface towards processing element:
-  val readPort = new CacheReadPortIF(addrBits, lineSize)
+  val readPort = new CacheReadPort_ColdMissSkip_IF(addrBits, lineSize)
   val writePort = new CacheWritePortIF(addrBits, lineSize)
   
   // interface towards main memory, read requests
@@ -73,8 +73,9 @@ class SinglePortCacheIF(addrBits: Int, lineSize: Int) extends Bundle {
   val readMissCount = UInt(OUTPUT, 32)
   val writeCount = UInt(OUTPUT, 32)
   val writeMissCount = UInt(OUTPUT, 32)
+  val coldSkipCount = UInt(OUTPUT, 32)
   
-  override def clone = { new SinglePortCacheIF(addrBits,lineSize).asInstanceOf[this.type] }
+  override def clone = { new SinglePortCache_ColdMissSkip_IF(addrBits,lineSize).asInstanceOf[this.type] }
 }
 
 }

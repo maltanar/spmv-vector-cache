@@ -12,7 +12,7 @@ import CacheInterface._
 class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   val io = new Bundle {
     // ports towards processor and main mem
-    val externalIF = new SinglePortCacheIF(addrBits, lineSize)
+    val externalIF = new SinglePortCache_ColdMissSkip_IF(addrBits, lineSize)
     
     // ports towards the data memory
     val dataPortA = new CacheDataReadWritePort(lineSize, addrBits).flip // for read reqs
@@ -28,19 +28,22 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   val writeCount = Reg(init = UInt(0, 32))
   val readMissCount = Reg(init = UInt(0, 32))
   val writeMissCount = Reg(init = UInt(0, 32))
+  val coldSkipCount = Reg(init = UInt(0, 32))
   
   // memory for keeping cache state
   val depthBitCount = log2Up(depth)
   val tagBitCount = addrBits - depthBitCount
   
-  val sInit :: sActive :: sFinishPendingWrites :: sIssueReadReq :: sEvictWrite :: sCacheFill :: sInitCacheFlush :: sCacheFlush :: Nil = Enum(UInt(), 8)
+  val sInit :: sActive :: sFinishPendingWrites :: sIssueReadReq :: sEvictWrite :: sCacheFill :: sInitCacheFlush :: sCacheFlush :: sColdSkip :: Nil = Enum(UInt(), 9)
   val state = Reg(init = UInt(sInit))
   val initCtr = Reg(init = UInt(0, depthBitCount))
   
   // shorthands for current read request
-  val currentReq = io.externalIF.readPort.readReq.bits
+  val currentReq = io.externalIF.readPort.readReq.bits(addrBits-1, 0)
   val currentReqInd = currentReq(depthBitCount-1, 0)         // lower bits as index
   val currentReqTag = currentReq(addrBits-1, depthBitCount)  // higher bits as tag
+  // use highest bit to mark start-of-row elements (will cause cold miss, return 0)
+  val currentReqCold = io.externalIF.readPort.readReq.bits(addrBits)
   
   // defaults for tag port A, dedicated to read requests
   io.tagPortA.addr := currentReqInd
@@ -102,6 +105,7 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   io.externalIF.readMissCount := readMissCount         // total read misses so far
   io.externalIF.writeCount := writeCount     // total writes so far
   io.externalIF.writeMissCount := writeMissCount   // total write misses so far
+  io.externalIF.coldSkipCount := coldSkipCount  // total cold read skips so far
   
   // default next-values for registers
   enableReadRespReg := Bool(false)
@@ -254,15 +258,8 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
     .otherwise
     {
       // no further writes to service
-      state := sIssueReadReq
+      state := sEvictWrite
     }
-  }
-  .elsewhen (state === sIssueReadReq)
-  {
-    // enqueue the read miss
-    io.externalIF.memRead.memReq.valid := Bool(true)
-    // go to sEvictWrite state, figure out cold cacheline misses there
-    state := sEvictWrite
   }
   .elsewhen (state === sEvictWrite)
   {
@@ -274,8 +271,35 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
       io.externalIF.memWrite.memWriteReq.bits := Cat(currentReqLineTag, currentReqInd)
       // read evicted data from BRAM
       io.externalIF.memWrite.memWriteData := io.dataPortA.dataOut
-      state := sCacheFill
+      // next state depends on cold bit
+      state := Mux(currentReqCold, sColdSkip, sIssueReadReq)
     }
+  }
+  .elsewhen (state === sColdSkip)
+  {
+    // start-of-row marker detected -- this read miss will
+    // return a zero, so no need to issue a read, just put into
+    // cache
+    
+    // write a zero to cache through portA
+    io.dataPortA.dataIn := UInt(0)
+    io.dataPortA.writeEn := Bool(true)
+
+    // fix tag and valid bits by enabling tag write
+    io.tagPortA.writeEn := Bool(true)
+    
+    // increment the cold skip counter
+    coldSkipCount := coldSkipCount + UInt(1)
+
+    // go back to active state
+    state := sActive
+  }
+  .elsewhen (state === sIssueReadReq)
+  {
+    // enqueue the read miss
+    io.externalIF.memRead.memReq.valid := Bool(true)
+    // go to sEvictWrite state, figure out cold cacheline misses there
+    state := sCacheFill
   }
   .elsewhen (state === sCacheFill)
   {
