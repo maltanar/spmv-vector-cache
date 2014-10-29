@@ -10,7 +10,7 @@ import CacheInterface._
 // ensure FIFO queues at all input and output to avoid combinational loops
 
 class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
-  val io = new SinglePortCacheIF(lineSize, addrBits)
+  val io = new SinglePortCacheIF(addrBits, lineSize)
   
   // registers for read/miss counts
   val readCount = Reg(init = UInt(0, 32))

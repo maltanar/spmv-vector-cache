@@ -9,7 +9,7 @@ import CacheInterface._
 // ensure FIFO queues at all input and output to avoid combinational loops
 
 class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Module {
-  val io = new SinglePortCacheIF(lineSize, addrBits)
+  val io = new SinglePortCacheIF(addrBits, lineSize)
   val controller = Module(new CacheController(lineSize, depth, addrBits))
   
   io <> controller.io
