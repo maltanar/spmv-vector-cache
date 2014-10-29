@@ -6,8 +6,9 @@ object MainObj {
     val cacheLineSize = 64
     val cacheDepth = 8192
     val addressBits = 24    
-    chiselMainTest(args, () => Module(new SimpleDMVectorCache(cacheLineSize, cacheDepth, addressBits))) {
-      c => new SimpleDMVectorCacheTester(c, cacheDepth)
-    }
+    //chiselMain(args, () => Module(new CacheDataMemory(cacheLineSize, cacheDepth, addressBits)))
+    chiselMainTest(args, () => Module(new SimpleDMVectorCache(cacheLineSize, cacheDepth, addressBits))) { c => new SimpleDMVectorCacheTester(c, cacheDepth) }
   }
 }
+
+

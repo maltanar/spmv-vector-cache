@@ -5,6 +5,13 @@ import Chisel._
 import Literal._
 import Node._
 
+class CacheDataReadWritePort(lineSize: Int, addrBits: Int) extends Bundle {
+  val addr = UInt(INPUT, width=addrBits)
+  val dataIn = UInt(INPUT, width=lineSize)
+  val writeEn = Bool(INPUT)
+  val dataOut = UInt(OUTPUT, width=lineSize)
+  override def clone = { new CacheDataReadWritePort(lineSize,addrBits).asInstanceOf[this.type] }
+}
 
 class CacheReadPortIF(addrBits: Int, lineSize: Int) extends Bundle {
   // read request port
