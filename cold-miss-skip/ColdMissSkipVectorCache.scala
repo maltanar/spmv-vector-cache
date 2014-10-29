@@ -8,7 +8,7 @@ import CacheInterface._
 // IMPORTANT:
 // ensure FIFO queues at all input and output to avoid combinational loops
 
-class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Module {
+class ColdMissSkipVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   val io = new SinglePortCacheIF(addrBits, lineSize)
   val controller = Module(new CacheController(lineSize, depth, addrBits))
   val dataMem = Module(new CacheDataMemory(lineSize, depth, addrBits))
@@ -21,7 +21,7 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   controller.io.tagPortB <> tagMem.io.portB
 }
 
-class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Tester(c) {
+class ColdMissSkipVectorCacheTester(c: ColdMissSkipVectorCache, depth: Int) extends Tester(c) {
   // TODO add some proper write testing
   // these tests should include:
   // - read cold miss
