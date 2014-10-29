@@ -13,6 +13,12 @@ class CacheDataReadWritePort(lineSize: Int, addrBits: Int) extends Bundle {
   override def clone = { new CacheDataReadWritePort(lineSize,addrBits).asInstanceOf[this.type] }
 }
 
+class CacheDataReadPort(lineSize: Int, addrBits: Int) extends Bundle {
+  val addr = UInt(INPUT, width=addrBits)
+  val dataOut = UInt(OUTPUT, width=lineSize)
+  override def clone = { new CacheDataReadPort(lineSize,addrBits).asInstanceOf[this.type] }
+}
+
 class CacheReadPortIF(addrBits: Int, lineSize: Int) extends Bundle {
   // read request port
   val readReq = Decoupled(UInt(width = addrBits)).flip

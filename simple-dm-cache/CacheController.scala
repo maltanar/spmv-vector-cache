@@ -17,6 +17,10 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
     // ports towards the data memory
     val dataPortA = new CacheDataReadWritePort(lineSize, addrBits).flip // for read reqs
     val dataPortB = new CacheDataReadWritePort(lineSize, addrBits).flip // for write reqs
+    
+    // ports towards the tag memory
+    val tagPortA = new CacheDataReadWritePort(lineSize, addrBits).flip  // for read reqs
+    val tagPortB = new CacheDataReadPort(lineSize, addrBits).flip  // for write reqs
   }
   
   // registers for read/miss counts
@@ -28,9 +32,6 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   // memory for keeping cache state
   val depthBitCount = log2Up(depth)
   val tagBitCount = addrBits - depthBitCount
-
-  // combinational-read memory for tag and valid (LUTRAM)
-  val tagStorage = Mem(UInt(width=tagBitCount+1), depth, false)
   
   val sInit :: sActive :: sFinishPendingWrites :: sIssueReadReq :: sEvictWrite :: sCacheFill :: sInitCacheFlush :: sCacheFlush :: Nil = Enum(UInt(), 8)
   val state = Reg(init = UInt(sInit))
@@ -41,8 +42,13 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   val currentReqInd = currentReq(depthBitCount-1, 0)         // lower bits as index
   val currentReqTag = currentReq(addrBits-1, depthBitCount)  // higher bits as tag
   
+  // defaults for tag port A, dedicated to read requests
+  io.tagPortA.addr := currentReqInd
+  io.tagPortA.dataIn := Cat(currentReqTag, Bits(1, width=1))  // read miss replacement
+  io.tagPortA.writeEn := Bool(false)
+  
   // shorthands for tag/valid data for current read request
-  val currentReqEntry = tagStorage(currentReqInd)
+  val currentReqEntry = io.tagPortA.dataOut
   val currentReqLineValid = currentReqEntry(0)               // lowest bit = valid
   val currentReqLineTag = currentReqEntry(tagBitCount, 1)    // other bits = tag
   
@@ -52,8 +58,11 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   val currentWriteReqTag = currentWriteReq(addrBits-1, depthBitCount)
   val currentWriteReqData = io.externalIF.writePort.writeData
   
+  // defaults for tag port B, dedicated to write requests
+  io.tagPortB.addr := currentWriteReqInd
+   
   // shorthands for tag/valid data for current write request
-  val currentWriteReqEntry = tagStorage(currentWriteReqInd)
+  val currentWriteReqEntry = io.tagPortB.dataOut
   val currentWriteReqLineValid = currentWriteReqEntry(0)
   val currentWriteReqLineTag = currentWriteReqEntry(tagBitCount, 1)
   
@@ -104,7 +113,9 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
     // can be removed
     
     // reset every valid bit in the cache
-    tagStorage(initCtr) := UInt(0)
+    io.tagPortA.writeEn := Bool(true)
+    io.tagPortA.dataIn := UInt(0)
+    io.tagPortA.addr := initCtr
     
     // increment the initialization counter
     initCtr := initCtr + UInt(1)
@@ -125,16 +136,17 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
     // data will be available next cycle
     io.dataPortA.addr := initCtr
     
+    
     when (io.externalIF.memWrite.memWriteReq.ready)
     {
       initCtr := initCtr + UInt(1)
       val fetchedInd = initCtr - UInt(1)
-      val lineToFlush = tagStorage(fetchedInd)
-      val flushValid = lineToFlush(0)
-      val flushTag = lineToFlush(tagBitCount, 1)
+      // read tag on port A
+      // tag reads are immediately available
+      io.tagPortA.addr := fetchedInd
       
-      io.externalIF.memWrite.memWriteReq.valid := flushValid
-      io.externalIF.memWrite.memWriteReq.bits := Cat(flushTag, fetchedInd)
+      io.externalIF.memWrite.memWriteReq.valid := currentReqLineValid
+      io.externalIF.memWrite.memWriteReq.bits := Cat(currentReqLineTag, fetchedInd)
       io.externalIF.memWrite.memWriteData := io.dataPortA.dataOut
       
       // go to sActive when all blocks flushed
@@ -249,8 +261,7 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
   {
     // enqueue the read miss
     io.externalIF.memRead.memReq.valid := Bool(true)
-    // go to sEvictWrite state, figure out cold
-    // cacheline misses there
+    // go to sEvictWrite state, figure out cold cacheline misses there
     state := sEvictWrite
   }
   .elsewhen (state === sEvictWrite)
@@ -278,8 +289,8 @@ class CacheController(lineSize: Int, depth: Int, addrBits: Int) extends Module {
       // write returned data to cache through portA
       io.dataPortA.writeEn := Bool(true)
       
-      // fix tag and valid bits
-      tagStorage(currentReqInd) := Cat(currentReqTag, Bits(1, width=1))
+      // fix tag and valid bits by enabling tag write
+      io.tagPortA.writeEn := Bool(true)
       
       // go back to active state
       state := sActive

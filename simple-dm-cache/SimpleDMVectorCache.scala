@@ -12,11 +12,13 @@ class SimpleDMVectorCache(lineSize: Int, depth: Int, addrBits: Int) extends Modu
   val io = new SinglePortCacheIF(addrBits, lineSize)
   val controller = Module(new CacheController(lineSize, depth, addrBits))
   val dataMem = Module(new CacheDataMemory(lineSize, depth, addrBits))
+  val tagMem = Module(new CacheTagMemory(lineSize, depth, addrBits))
   
   io <> controller.io.externalIF
-  
   controller.io.dataPortA <> dataMem.io.portA
   controller.io.dataPortB <> dataMem.io.portB
+  controller.io.tagPortA <> tagMem.io.portA
+  controller.io.tagPortB <> tagMem.io.portB
 }
 
 class SimpleDMVectorCacheTester(c: SimpleDMVectorCache, depth: Int) extends Tester(c) {
