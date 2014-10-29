@@ -1,6 +1,6 @@
 #!/bin/sh
 
-SRC_DIR="/home/maltanar/sandbox/spmv-vector-cache/simple-dm-cache"
+SRC_DIR="/home/maltanar/sandbox/spmv-vector-cache/cold-miss-skip"
 WORK_DIR="/home/maltanar/sandbox/build-verilator"
 TARGET_DIR="/home/maltanar/sandbox/spmvaccsim/vector-cache-src"
 VERILATOR_DIR="/usr/share/verilator/include"
@@ -13,7 +13,7 @@ mkdir -p $TARGET_DIR
 cd $SRC_DIR
 sbt "run --targetDir $WORK_DIR --backend v"
 cd $WORK_DIR
-verilator --sc SimpleDMVectorCache.v +define+SYNTHESIS+1 -Wno-lint
+verilator --sc ColdMissSkipVectorCache.v +define+SYNTHESIS+1 -Wno-lint
 cp -f obj_dir/*.cpp $TARGET_DIR/
 cp -f obj_dir/*.h $TARGET_DIR/
 cp -f $VERILATOR_DIR/verilated.cpp $TARGET_DIR
