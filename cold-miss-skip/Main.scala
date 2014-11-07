@@ -96,9 +96,19 @@ class FPGASynResWrapper(lineSize: Int, depth: Int, addrBits: Int) extends Module
 
 object MainObj {
   def main(args: Array[String]): Unit = {
+    
+    def getCacheDepthParam(list: List[String]) : Int = {
+      list match {
+        case "--depth" :: value :: tail => value.toInt
+        case _ => 1024
+      }
+    }
+    
     val cacheLineSize = 64
-    val cacheDepth = 8192
-    val addressBits = 24    
+    val cacheDepth = getCacheDepthParam(args.toList)
+    val addressBits = 24
+    
+    println(cacheDepth)
     //chiselMain(args, () => Module(new CacheDataMemory(cacheLineSize, cacheDepth, addressBits)))
     //chiselMain(args, () => Module(new FPGASynResWrapper(cacheLineSize, cacheDepth, addressBits)))
     chiselMainTest(args, () => Module(new ColdMissSkipVectorCache(cacheLineSize, cacheDepth, addressBits))) { c => new ColdMissSkipVectorCacheTester(c, cacheDepth) }
