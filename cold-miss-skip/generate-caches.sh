@@ -2,7 +2,7 @@
 
 SRC_DIR="/home/maltanar/sandbox/spmv-vector-cache/cold-miss-skip"
 WORK_DIR="/home/maltanar/sandbox/build-verilator"
-TARGET_DIR="/home/maltanar/sandbox/spmv-vector-cache/generated-systemc"
+TARGET_DIR="/home/maltanar/sandbox/spmv-vector-cache/generated-systemc/cold-skip"
 VERILATOR_DIR="/usr/share/verilator/include"
 
 CACHE_DEPTHS="1024 2048 4096 8192 16384 32768 65536 131072"
@@ -22,7 +22,6 @@ for depth in $CACHE_DEPTHS; do
   mkdir -p $currentTargetDir
   cp -f obj_dir/*.cpp $currentTargetDir/
   cp -f obj_dir/*.h $currentTargetDir/
-  cp -f $VERILATOR_DIR/verilated.cpp $currentTargetDir/verilated.cpp
   cd $SRC_DIR
   rm -rf $WORK_DIR
 done
