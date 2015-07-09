@@ -1,0 +1,3 @@
+[submodule "chisel/fpga-tidbits"]
+	path = chisel/fpga-tidbits
+	url = https://github.com/maltanar/fpga-tidbits.git
