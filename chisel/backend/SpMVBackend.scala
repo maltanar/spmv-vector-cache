@@ -71,17 +71,14 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   // TODO count write responses + signal write finish
 
   // instantiate deinterleaver
-  // TODO fix deinterleaver route table! depends on baseId
-  val deintl = Module(new QueuedDeinterleaver(4, pMem, 4)).io
-  io.decodeErrors := deintl.decodeErrors
-  deintl.rspIn <> io.memRdRsp
+  val deintl = Module(new RespDeinterleaver(4, pMem) {
+    // adjust deinterleaver routing function -- depends on baseId
+    override lazy val idToPipe = {x:UInt => x-UInt(idBase)}
+  })
+  io.decodeErrors := deintl.io.decodeErrors
+  deintl.io.rspIn <> io.memRdRsp
   // TODO connect deinterleaver to outputs to frontend with downsizers
-  /*
-  deintl.rspOut(0) <> io.colPtrOut
-  deintl.rspOut(1) <> io.rowIndOut
-  deintl.rspOut(2) <> io.nzDataOut
-  deintl.rspOut(3) <> io.inputVecOut
-  */
+
 
   // TODO wire control and status
 
