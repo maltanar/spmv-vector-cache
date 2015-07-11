@@ -41,6 +41,14 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
     val memWrDat = Decoupled(UInt(width = p.memDataWidth))
     val memWrRsp = Decoupled(new GenericMemoryResponse(pMem)).flip
   }
+  val oprBytes = UInt(p.opWidth/8)
+  val ptrBytes = UInt(p.ptrWidth/8)
+  val colPtrBytes = ptrBytes*(io.numCols+UInt(1)) // +1 comes from CSR/CSC
+  val rowIndBytes = ptrBytes*io.numNZ
+  val nzBytes = oprBytes*io.numNZ
+  val inputVecBytes = oprBytes*io.numCols
+  val outputVecBytes = oprBytes*io.numRows
+
   // instantiate request interleaver for mixing reqs from read chans
   val intl = Module(new ReqInterleaver(4, pMem)).io
   // read request port driven by interleaver
@@ -48,9 +56,17 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
 
   // instantiate 4xread request generators, one for each SpMV data channel
   val rqColPtr = Module(new ReadReqGen(pMem, idBase)).io
+  rqColPtr.ctrl.baseAddr := io.baseColPtr
+  rqColPtr.ctrl.byteCount := colPtrBytes
   val rqRowInd = Module(new ReadReqGen(pMem, idBase+1)).io
+  rqRowInd.ctrl.baseAddr := io.baseRowInd
+  rqRowInd.ctrl.byteCount := rowIndBytes
   val rqNZData = Module(new ReadReqGen(pMem, idBase+2)).io
+  rqNZData.ctrl.baseAddr := io.baseNZData
+  rqNZData.ctrl.byteCount := nzBytes
   val rqInputVec = Module(new ReadReqGen(pMem, idBase+3)).io
+  rqInputVec.ctrl.baseAddr := io.baseInputVec
+  rqInputVec.ctrl.byteCount := inputVecBytes
   // connect read req generators to interleaver
   rqColPtr.reqs <> intl.reqIn(0)
   rqRowInd.reqs <> intl.reqIn(1)
@@ -67,15 +83,6 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   val filterFxn = {x: GenericMemoryResponse => x.readData}
   val genO = UInt(width=64)
 
-  // instantiate write req gen
-  val rqWrite = Module(new WriteReqGen(pMem, idBase+4)).io
-  rqWrite.reqs <> io.memWrReq   // only write channel, no interleaver needed
-  io.memWrDat <> io.outputVecIn // write data directly from frontend
-  // use StreamReducer to count write responses
-  val wrCompl = Module(new StreamReducer(64, 0, (x,y)=>x+y)).io
-  wrCompl.streamIn <> StreamFilter(io.memWrRsp, genO, filterFxn)
-  wrCompl.byteCount := UInt(p.opWidth/8) * io.numRows
-
   // instantiate deinterleaver
   val deintl = Module(new QueuedDeinterleaver(4, pMem, 4) {
     // adjust deinterleaver routing function -- depends on baseId
@@ -88,6 +95,17 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   io.rowIndOut <> StreamDownsizer(StreamFilter(deintl.io.rspOut(1), genO, filterFxn), 32)
   io.nzDataOut <> StreamFilter(deintl.io.rspOut(2), genO, filterFxn)
   io.inputVecOut <>  StreamFilter(deintl.io.rspOut(3), genO, filterFxn)
+
+  // instantiate write req gen
+  val rqWrite = Module(new WriteReqGen(pMem, idBase+4)).io
+  rqWrite.ctrl.baseAddr := io.baseOutputVec
+  rqWrite.ctrl.byteCount := outputVecBytes
+  rqWrite.reqs <> io.memWrReq   // only write channel, no interleaver needed
+  io.memWrDat <> io.outputVecIn // write data directly from frontend
+  // use StreamReducer to count write responses
+  val wrCompl = Module(new StreamReducer(64, 0, (x,y)=>x+y)).io
+  wrCompl.streamIn <> StreamFilter(io.memWrRsp, genO, filterFxn)
+  wrCompl.byteCount := outputVecBytes
 
   // TODO wire control and status
 
