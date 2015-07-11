@@ -63,12 +63,18 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   rqNZData.ctrl.throttle := (io.fbNZData < io.thresNZData)
   rqInputVec.ctrl.throttle := (io.fbInputVec < io.thresInputVec)
 
+  // define a 64-bit UInt type and filterFxn, useful for handling responses
+  val filterFxn = {x: GenericMemoryResponse => x.readData}
+  val genO = UInt(width=64)
 
   // instantiate write req gen
   val rqWrite = Module(new WriteReqGen(pMem, idBase+4)).io
   rqWrite.reqs <> io.memWrReq   // only write channel, no interleaver needed
   io.memWrDat <> io.outputVecIn // write data directly from frontend
-  // TODO count write responses + signal write finish
+  // use StreamReducer to count write responses
+  val wrCompl = Module(new StreamReducer(64, 0, (x,y)=>x+y)).io
+  wrCompl.streamIn <> StreamFilter(io.memWrRsp, genO, filterFxn)
+  wrCompl.byteCount := UInt(p.opWidth/8) * io.numRows
 
   // instantiate deinterleaver
   val deintl = Module(new QueuedDeinterleaver(4, pMem, 4) {
@@ -78,8 +84,6 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   io.decodeErrors := deintl.io.decodeErrors
   deintl.io.rspIn <> io.memRdRsp
   // connect deinterleaver to outputs to frontend, with downsizers where necessary
-  val filterFxn = {x: GenericMemoryResponse => x.readData}
-  val genO = UInt(width=64)
   io.colPtrOut <> StreamDownsizer(StreamFilter(deintl.io.rspOut(0), genO, filterFxn), 32)
   io.rowIndOut <> StreamDownsizer(StreamFilter(deintl.io.rspOut(1), genO, filterFxn), 32)
   io.nzDataOut <> StreamFilter(deintl.io.rspOut(2), genO, filterFxn)
