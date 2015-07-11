@@ -8,7 +8,12 @@ import TidbitsStreams._
 class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module {
   val pMem = p.toMRP()
   val io = new Bundle {
-    // status outputs
+    // control
+    val startRegular = Bool(INPUT)
+    val startWrite = Bool(INPUT)
+    // status
+    val doneRegular = Bool(OUTPUT)
+    val doneWrite = Bool(OUTPUT)
     val decodeErrors = UInt(OUTPUT, width = 32)
     // value inputs
     val numRows = UInt(INPUT, width = 32)
@@ -105,9 +110,18 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   // use StreamReducer to count write responses
   val wrCompl = Module(new StreamReducer(64, 0, (x,y)=>x+y)).io
   wrCompl.streamIn <> StreamFilter(io.memWrRsp, genO, filterFxn)
+  wrCompl.start := io.startWrite
   wrCompl.byteCount := outputVecBytes
 
-  // TODO wire control and status
+  // wire control + status
+  val regularComps = List(rqColPtr, rqRowInd, rqNZData, rqInputVec)
+  val writeComps = List(rqWrite)
 
-  // TODO control logic
+  io.doneRegular := regularComps.map(x => x.stat.finished).reduce(_ & _)
+  // write completion is the "most downstream" operation, use only that
+  // to determine whether the whole write op is finished
+  io.doneWrite := wrCompl.finished
+
+  for(rc <- regularComps) { rc.ctrl.start := io.startRegular }
+  for(wc <- writeComps) { wc.ctrl.start := io.startWrite }
 }
