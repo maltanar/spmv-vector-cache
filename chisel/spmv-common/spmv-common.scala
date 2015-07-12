@@ -17,6 +17,6 @@ class SpMVAccelWrapperParams() extends BaseWrapperParams() {
   val rowIndFIFODepth: Int = 512
   val nzDataFIFODepth: Int = 512
   // TODO add more params: caching type, OCM depth...
-  val makeAdd: () => SemiringOp = {new OpAddCombinatorial(opWidth)}
-  val makeMul: () => SemiringOp = {new OpMulCombinatorial(opWidth)}
+  val makeAdd: () => SemiringOp = {() => new OpAddCombinatorial(opWidth)}
+  val makeMul: () => SemiringOp = {() => new OpMulCombinatorial(opWidth)}
 }
