@@ -40,12 +40,15 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
 
   // instantiate backend, connect memory port
   val backend = Module(new SpMVBackend(p, 0)).io
-  backend.memRdReq <> io.memRdReq
-  backend.memRdRsp <> io.memRdRsp
-  backend.memWrReq <> io.memWrReq
-  backend.memWrDat <> io.memWrDat
-  backend.memWrRsp <> io.memWrRsp
-  // TODO wire-up backend value inputs, FIFO levels, ctl and status
+  // use partial interface fulfilment to connect backend interfaces
+  // produces warnings, but should work fine
+  backend <> in
+  backend <> io
+  backend.startRegular := (in.ctlBackend(1, 0) === UInt(1))
+  backend.startWrite := (in.ctlBackend(1, 0) === UInt(2))
+  val hasDecErr = (backend.decodeErrors != UInt(0))
+  out.statBackend := Cat(List(hasDecErr, backend.doneWrite, backend.doneRegular))
+  // TODO wire-up backend FIFO levels
 
   // TODO instantiate frontend and wire-up
   val frontend = Module(new SpMVFrontend(p)).io
