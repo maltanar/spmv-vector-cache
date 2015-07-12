@@ -13,27 +13,27 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
 
   val in = new Bundle {
     // control inputs
-    val ctlFrontend = UInt(width = p.addrWidth)
-    val ctlBackend = UInt(width = p.addrWidth)
+    val ctlFrontend = UInt(width = p.csrDataWidth)
+    val ctlBackend = UInt(width = p.csrDataWidth)
     // val resetAll = Bool()
     // value inputs
-    val numRows = UInt(width = p.addrWidth)
-    val numCols = UInt(width = p.addrWidth)
-    val numNZ = UInt(width = p.addrWidth)
-    val baseColPtr = UInt(width = p.addrWidth)
-    val baseRowInd = UInt(width = p.addrWidth)
-    val baseNZData = UInt(width = p.addrWidth)
-    val baseInputVec = UInt(width = p.addrWidth)
-    val baseOutputVec = UInt(width = p.addrWidth)
-    val thresColPtr = UInt(width = p.addrWidth)
-    val thresRowInd = UInt(width = p.addrWidth)
-    val thresNZData = UInt(width = p.addrWidth)
-    val thresInputVec = UInt(width = p.addrWidth)
+    val numRows = UInt(width = p.csrDataWidth)
+    val numCols = UInt(width = p.csrDataWidth)
+    val numNZ = UInt(width = p.csrDataWidth)
+    val baseColPtr = UInt(width = p.csrDataWidth)
+    val baseRowInd = UInt(width = p.csrDataWidth)
+    val baseNZData = UInt(width = p.csrDataWidth)
+    val baseInputVec = UInt(width = p.csrDataWidth)
+    val baseOutputVec = UInt(width = p.csrDataWidth)
+    val thresColPtr = UInt(width = p.csrDataWidth)
+    val thresRowInd = UInt(width = p.csrDataWidth)
+    val thresNZData = UInt(width = p.csrDataWidth)
+    val thresInputVec = UInt(width = p.csrDataWidth)
   }
 
   val out = new Bundle {
-    val statFrontend = UInt(width = p.addrWidth)
-    val statBackend = UInt(width = p.addrWidth)
+    val statFrontend = UInt(width = p.csrDataWidth)
+    val statBackend = UInt(width = p.csrDataWidth)
     // TODO profiling outputs, other outputs
   }
   manageRegIO(in, out)
