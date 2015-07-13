@@ -8,7 +8,7 @@ class BaseWrapperParams() extends AXIAccelWrapperParams(
   csrDataWidth = 32,
   memDataWidth = 64,
   idWidth = 6,
-  numRegs = 18)
+  numRegs = 32)
 
 class SpMVAccelWrapperParams() extends BaseWrapperParams() {
   val opWidth: Int = 64
