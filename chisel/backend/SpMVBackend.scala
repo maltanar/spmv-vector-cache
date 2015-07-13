@@ -79,10 +79,10 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   rqInputVec.reqs <> intl.reqIn(3)
   // read request threshold controls -- if FIFO level exceeds threshold,
   // throttle this read request generator to prevent clogging
-  rqColPtr.ctrl.throttle := (io.fbColPtr < io.thresColPtr)
-  rqRowInd.ctrl.throttle := (io.fbRowInd < io.thresRowInd)
-  rqNZData.ctrl.throttle := (io.fbNZData < io.thresNZData)
-  rqInputVec.ctrl.throttle := (io.fbInputVec < io.thresInputVec)
+  rqColPtr.ctrl.throttle := (io.fbColPtr > io.thresColPtr)
+  rqRowInd.ctrl.throttle := (io.fbRowInd > io.thresRowInd)
+  rqNZData.ctrl.throttle := (io.fbNZData > io.thresNZData)
+  rqInputVec.ctrl.throttle := (io.fbInputVec > io.thresInputVec)
 
   // define a 64-bit UInt type and filterFxn, useful for handling responses
   val filterFxn = {x: GenericMemoryResponse => x.readData}
