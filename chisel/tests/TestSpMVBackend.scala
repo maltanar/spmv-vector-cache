@@ -31,13 +31,22 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   }
 
   val out = new Bundle {
-    val stat = UInt(width = p.csrDataWidth)
     val redColPtr = UInt(width = p.csrDataWidth)
     val redRowInd = UInt(width = p.csrDataWidth)
     val redNZData0 = UInt(width = p.csrDataWidth)
     val redNZData1 = UInt(width = p.csrDataWidth)
     val redInputVec0 = UInt(width = p.csrDataWidth)
     val redInputVec1 = UInt(width = p.csrDataWidth)
+    //
+    val colPtrMonFinished = Bool()
+    val rowIndMonFinished = Bool()
+    val nzDataMonFinished = Bool()
+    val inpVecMonFinished = Bool()
+    val outVecGenFinished = Bool()
+    //
+    val doneRegular = Bool()
+    val doneWrite = Bool()
+
   }
   override lazy val regMap = manageRegIO(in, out)
 
@@ -46,6 +55,7 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   // use partial interface fulfilment to connect backend interfaces
   // produces warnings, but should work fine
   backend <> in
+  out <> backend
   backend <> io
 
   // plug rate control I/Os for backend -- unused
@@ -69,12 +79,14 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   colPtrMon.start := in.startRegular
   colPtrMon.byteCount := (in.numCols+UInt(1)) * ptrBytes
   out.redColPtr := colPtrMon.reduced
+  out.colPtrMonFinished := colPtrMon.finished
 
   val rowIndMon = Module(new StreamReducer(ptrWidth, 0, redFxn)).io
   rowIndMon.streamIn <> backend.rowIndOut
   rowIndMon.start := in.startRegular
   rowIndMon.byteCount := in.numNZ * ptrBytes
   out.redRowInd := rowIndMon.reduced
+  out.rowIndMonFinished := rowIndMon.finished
 
   val nzDataMon = Module(new StreamReducer(opWidth, 0, redFxn)).io
   nzDataMon.streamIn <> backend.nzDataOut
@@ -82,6 +94,7 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   nzDataMon.byteCount := in.numNZ * opBytes
   out.redNZData0 := nzDataMon.reduced(31,0)
   out.redNZData1 := nzDataMon.reduced(63,32)
+  out.nzDataMonFinished := nzDataMon.finished
 
   val inpVecMon = Module(new StreamReducer(opWidth, 0, redFxn)).io
   inpVecMon.streamIn <> backend.inputVecOut
@@ -89,6 +102,7 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   inpVecMon.byteCount := in.numRows * ptrBytes
   out.redInputVec0 := inpVecMon.reduced(31,0)
   out.redInputVec1 := inpVecMon.reduced(63,32)
+  out.inpVecMonFinished := inpVecMon.finished
 
   val outVecGen = Module(new SequenceGenerator(opWidth)).io
   outVecGen.seq <> backend.outputVecIn
@@ -96,18 +110,26 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   outVecGen.init := UInt(0)
   outVecGen.count := in.numRows
   outVecGen.step := UInt(1)
-
-  val monList = List( colPtrMon.finished, rowIndMon.finished,
-                      nzDataMon.finished, inpVecMon.finished,
-                      outVecGen.finished)
+  out.outVecGenFinished := outVecGen.finished
 
   // test
   override def defaultTest(t: WrappableAccelTester): Boolean = {
-    println("Hello there!")
     super.defaultTest(t)
-  }
+    // test backend writeout mode
+    t.expectReg("out_outVecGenFinished", 0)
+    t.expectReg("out_doneWrite", 0)
+    t.writeReg("in_numRows", 64)
+    t.writeReg("in_baseOutputVec", 0)
+    t.writeReg("in_startWrite", 1)
+    while(t.readReg("out_outVecGenFinished") != 1) { t.step(1)}
+    while(t.readReg("out_doneWrite") != 1) { t.step(1)}
+    for(i <- 0 until 64) {
+      t.expectMem(i*8, i)
+    }
+    t.writeReg("in_startWrite", 0)
+    t.expectReg("out_outVecGenFinished", 0)
+    t.expectReg("out_doneWrite", 0)
 
-  val hasDecErr = (backend.decodeErrors != UInt(0))
-  val statList = List(hasDecErr, backend.doneWrite, backend.doneRegular)
-  out.stat := Cat(statList ++ monList)
+    return true
+  }
 }
