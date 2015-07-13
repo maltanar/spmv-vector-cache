@@ -16,6 +16,7 @@ unmanagedSourceDirectories in Compile <++= baseDirectory { base =>
     base / "fpga-tidbits/regfile",
     base / "backend",
     base / "frontend",
-    base / "spmv-common"
+    base / "spmv-common",
+    base / "tests"
   )
 }
