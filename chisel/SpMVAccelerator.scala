@@ -36,7 +36,7 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
     val statBackend = UInt(width = p.csrDataWidth)
     // TODO profiling outputs, other outputs
   }
-  manageRegIO(in, out)
+  override lazy val regMap = manageRegIO(in, out)
 
   // instantiate backend, connect memory port
   val backend = Module(new SpMVBackend(p, 0)).io
