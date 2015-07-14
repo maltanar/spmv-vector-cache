@@ -45,6 +45,8 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
     val doneWrite = Bool()
     //
     val backendDebug = UInt(width = p.csrDataWidth)
+    //
+    val rdMon = new StreamMonitorOutIF()
   }
   override lazy val regMap = manageRegIO(in, out)
 
@@ -111,6 +113,11 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   out.allMonsFinished := monFin.reduce(_ & _)
   out.monDebug := Cat(monFin)
 
+
+  // stream monitors -- way at the end, so that the stream we want to monitor
+  // has already been wired up (if this is a problem at all)
+  out.rdMon := StreamMonitor(io.memRdRsp, in.startRegular & !out.doneRegular)
+
   // test
   override def defaultTest(t: WrappableAccelTester): Boolean = {
     super.defaultTest(t)
@@ -171,6 +178,7 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
     // done should go back to low after start=0
     t.writeReg("in_startRegular", 0)
     t.expectReg("out_doneRegular", 0)
+    t.printAllRegs()
 
     return true
   }
