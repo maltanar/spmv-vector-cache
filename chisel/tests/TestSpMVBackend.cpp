@@ -1,4 +1,10 @@
+#include <malloc.h>
+#include <assert.h>
+#include <iostream>
+#include <string.h>
 #include "TestSpMVBackendDriver.hpp"
+
+using namespace std;
 
 #define isAligned(x) (assert((unsigned int)x % 64 == 0))
 
@@ -88,6 +94,12 @@ void TestSpMVBackend() {
 	drv.in_startRegular(0);
 	assert(drv.out_doneRegular() == 0);
 
+	cout << "Active cycles: " << drv.out_rdMon_activeCycles() << endl;
+	cout << "Total cycles: " << drv.out_rdMon_totalCycles() << endl;
+
+	float dataVol = (numCols + numNZ) *(sizeof(SpMVData)+sizeof(SpMVIndex));
+	float bw = dataVol/(float)drv.out_rdMon_totalCycles();
+	cout << "BW: " << bw << " bytes/cycle" << endl;
 
 	Xil_DCacheEnable();
 }
