@@ -64,16 +64,16 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   def alignToMemWidth(x: UInt): UInt = {return alignTo(p.memDataWidth/8, x)}
 
   // instantiate 4xread request generators, one for each SpMV data channel
-  val rqColPtr = Module(new ReadReqGen(pMem, idBase)).io
+  val rqColPtr = Module(new ReadReqGen(pMem, idBase, p.colPtrBurstBeats)).io
   rqColPtr.ctrl.baseAddr := io.baseColPtr
   rqColPtr.ctrl.byteCount := alignToMemWidth(colPtrBytes)
-  val rqRowInd = Module(new ReadReqGen(pMem, idBase+1)).io
+  val rqRowInd = Module(new ReadReqGen(pMem, idBase+1, p.rowIndBurstBeats)).io
   rqRowInd.ctrl.baseAddr := io.baseRowInd
   rqRowInd.ctrl.byteCount := alignToMemWidth(rowIndBytes)
-  val rqNZData = Module(new ReadReqGen(pMem, idBase+2)).io
+  val rqNZData = Module(new ReadReqGen(pMem, idBase+2, p.nzDataBurstBeats)).io
   rqNZData.ctrl.baseAddr := io.baseNZData
   rqNZData.ctrl.byteCount := alignToMemWidth(nzBytes)
-  val rqInputVec = Module(new ReadReqGen(pMem, idBase+3)).io
+  val rqInputVec = Module(new ReadReqGen(pMem, idBase+3, p.inpVecBurstBeats)).io
   rqInputVec.ctrl.baseAddr := io.baseInputVec
   rqInputVec.ctrl.byteCount := alignToMemWidth(inputVecBytes)
   // connect read req generators to interleaver
