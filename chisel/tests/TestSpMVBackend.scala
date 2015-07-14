@@ -38,15 +38,13 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
     val redInputVec0 = UInt(width = p.csrDataWidth)
     val redInputVec1 = UInt(width = p.csrDataWidth)
     //
-    val colPtrMonFinished = Bool()
-    val rowIndMonFinished = Bool()
-    val nzDataMonFinished = Bool()
-    val inpVecMonFinished = Bool()
-    val outVecGenFinished = Bool()
+    val allMonsFinished = Bool()
+    val monDebug = UInt(width = p.csrDataWidth)
     //
     val doneRegular = Bool()
     val doneWrite = Bool()
-
+    //
+    val backendDebug = UInt(width = p.csrDataWidth)
   }
   override lazy val regMap = manageRegIO(in, out)
 
@@ -79,14 +77,12 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   colPtrMon.start := in.startRegular
   colPtrMon.byteCount := (in.numCols+UInt(1)) * ptrBytes
   out.redColPtr := colPtrMon.reduced
-  out.colPtrMonFinished := colPtrMon.finished
 
   val rowIndMon = Module(new StreamReducer(ptrWidth, 0, redFxn)).io
   rowIndMon.streamIn <> backend.rowIndOut
   rowIndMon.start := in.startRegular
   rowIndMon.byteCount := in.numNZ * ptrBytes
   out.redRowInd := rowIndMon.reduced
-  out.rowIndMonFinished := rowIndMon.finished
 
   val nzDataMon = Module(new StreamReducer(opWidth, 0, redFxn)).io
   nzDataMon.streamIn <> backend.nzDataOut
@@ -94,7 +90,6 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   nzDataMon.byteCount := in.numNZ * opBytes
   out.redNZData0 := nzDataMon.reduced(31,0)
   out.redNZData1 := nzDataMon.reduced(63,32)
-  out.nzDataMonFinished := nzDataMon.finished
 
   val inpVecMon = Module(new StreamReducer(opWidth, 0, redFxn)).io
   inpVecMon.streamIn <> backend.inputVecOut
@@ -102,7 +97,6 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   inpVecMon.byteCount := in.numCols * opBytes
   out.redInputVec0 := inpVecMon.reduced(31,0)
   out.redInputVec1 := inpVecMon.reduced(63,32)
-  out.inpVecMonFinished := inpVecMon.finished
 
   val outVecGen = Module(new SequenceGenerator(opWidth)).io
   outVecGen.seq <> backend.outputVecIn
@@ -110,7 +104,12 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   outVecGen.init := UInt(0)
   outVecGen.count := in.numRows
   outVecGen.step := UInt(1)
-  out.outVecGenFinished := outVecGen.finished
+
+  val monFin = List(colPtrMon.finished, rowIndMon.finished,
+                    nzDataMon.finished, inpVecMon.finished)
+
+  out.allMonsFinished := monFin.reduce(_ & _)
+  out.monDebug := Cat(monFin)
 
   // test
   override def defaultTest(t: WrappableAccelTester): Boolean = {
@@ -121,9 +120,11 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
       if (rem != 0) { res += align-rem}
       return res
     }
+    // ================================================================
+    // initialize test values
     val numRows = 64
-    val numCols = 63
-    val numNZ = 256
+    val numCols = 64
+    val numNZ = 64
     val colPtrStart = 0
     val rowIndStart = alignedIncrement(colPtrStart, 4*(numCols+1), 64)
     val nzDataStart = alignedIncrement(rowIndStart, 4*numNZ, 64)
@@ -144,23 +145,32 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
     t.writeReg("in_baseInputVec", inpVecStart)
     t.writeReg("in_baseOutputVec", outVecStart)
     t.printAllRegs()
+    // ================================================================
     // test backend writeout mode
-    t.expectReg("out_outVecGenFinished", 0)
     t.expectReg("out_doneWrite", 0)
     t.writeReg("in_startWrite", 1)
-    while(t.readReg("out_outVecGenFinished") != 1) { t.step(1)}
     while(t.readReg("out_doneWrite") != 1) { t.step(1)}
     for(i <- 0 until numRows) {t.expectMem(outVecStart+i*8, i)}
+    // done should go back to low after start=0
     t.writeReg("in_startWrite", 0)
-    t.expectReg("out_outVecGenFinished", 0)
     t.expectReg("out_doneWrite", 0)
+    // ================================================================
     // test regular operation mode
     t.expectReg("out_doneRegular", 0)
     t.writeReg("in_startRegular", 1)
-    while(t.readReg("out_doneRegular") != 1) { t.step(1); t.printAllRegs()}
-    /*t.writeReg("in_startRegular", 0)
+    while(t.readReg("out_doneRegular") != 1) { t.step(1) }
+    while(t.readReg("out_allMonsFinished") != 1) {t.step(1) }
+    // check the sums from reducers
+    def sumUpTo(x: Int): Int = {return (x*(x+1))/2}
+    t.expectReg("out_redColPtr", sumUpTo((numCols+1)/2))
+    t.expectReg("out_redRowInd", sumUpTo(numNZ/2))
+    t.expectReg("out_redNZData0", sumUpTo(numNZ))
+    t.expectReg("out_redNZData1", 0)
+    t.expectReg("out_redInputVec0", sumUpTo(numCols))
+    t.expectReg("out_redInputVec1", 0)
+    // done should go back to low after start=0
+    t.writeReg("in_startRegular", 0)
     t.expectReg("out_doneRegular", 0)
-    */
 
     return true
   }
