@@ -11,11 +11,19 @@ class BaseWrapperParams() extends AXIAccelWrapperParams(
   numRegs = 32)
 
 class SpMVAccelWrapperParams() extends BaseWrapperParams() {
+  // bitwidths for SpMV
   val opWidth: Int = 64
   val ptrWidth: Int = 32
+  // # elements for the backend-frontend FIFOs
   val colPtrFIFODepth: Int = 256
   val rowIndFIFODepth: Int = 512
   val nzDataFIFODepth: Int = 512
+  val inpVecFIFODepth: Int = 256
+  // burst beats for the backend channels
+  val colPtrBurstBeats: Int = 1
+  val rowIndBurstBeats: Int = 8
+  val nzDataBurstBeats: Int = 8
+  val inpVecBurstBeats: Int = 1
   // TODO add more params: caching type, OCM depth...
   val makeAdd: () => SemiringOp = {() => new OpAddCombinatorial(opWidth)}
   val makeMul: () => SemiringOp = {() => new OpMulCombinatorial(opWidth)}
