@@ -116,7 +116,7 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
 
   // stream monitors -- way at the end, so that the stream we want to monitor
   // has already been wired up (if this is a problem at all)
-  out.rdMon := StreamMonitor(io.memRdRsp, in.startRegular & !out.doneRegular)
+  out.rdMon := StreamMonitor(io.memRdRsp, in.startRegular & !out.allMonsFinished)
 
   // test
   override def defaultTest(t: WrappableAccelTester): Boolean = {
