@@ -20,3 +20,18 @@ class SpMVAccelWrapperParams() extends BaseWrapperParams() {
   val makeAdd: () => SemiringOp = {() => new OpAddCombinatorial(opWidth)}
   val makeMul: () => SemiringOp = {() => new OpMulCombinatorial(opWidth)}
 }
+
+
+// size alignment in hardware
+// if lower bits are not zero (=not aligned), increment upper bits by one,
+// concatenate zeroes as the lower bits and return
+object alignTo {
+  def apply(align: Int, x: UInt): UInt = {
+    val numZeroAddrBits = log2Up(align)
+    val numOtherBits = x.getWidth()-numZeroAddrBits
+    val lower = x(numZeroAddrBits-1, 0)
+    val upper = x(x.getWidth()-1, numZeroAddrBits)
+    val isAligned = (lower === UInt(0))
+    return Mux(isAligned, x, Cat(upper+UInt(1), UInt(0, width = numZeroAddrBits)))
+  }
+}
