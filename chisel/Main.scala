@@ -24,13 +24,10 @@ object MainObj {
     System.exit(0)
   }
 
-  val instFxnMap: Map[String, () => Module] = Map(
-    "SpMVAccel" -> {() => new SpMVAccelerator(p)}
-  )
-
-  val testFxnMap: Map[String, () => AXIWrappableAccel] = Map {
+  val instFxnMap: Map[String, () => AXIWrappableAccel] = Map(
+    "SpMVAccel" -> {() => new SpMVAccelerator(p)},
     "TestSpMVBackend" -> {() => new TestSpMVBackend()}
-  }
+  )
 
   def main(args: Array[String]): Unit = {
     if(args.size != 2) { printUsageAndExit() }
@@ -39,20 +36,21 @@ object MainObj {
     val harnessMemDepth = 8*1024*1024
 
     val cmpName = args(1)
+    val instFxn = instFxnMap(cmpName)
+
     if(op == "inst") {
-      val instFxn = instFxnMap(cmpName)
-      makeVerilog(cmpName, instFxn)
+      makeHarnessVerilog(cmpName, instFxn)
     } else if(op == "test") {
-      val testFxn = testFxnMap(cmpName)
-      makeHarnessTest(cmpName, harnessMemDepth, testFxn)
+      makeHarnessTest(cmpName, harnessMemDepth, instFxn)
     } else {
       printUsageAndExit()
     }
   }
 
-  def makeVerilog(cmpName: String, instFxn: () => Module) {
+  def makeHarnessVerilog(cmpName: String, fxn: () => AXIWrappableAccel) {
     val vargs = makeVerilogBuildArgs(cmpName)
-    chiselMain(vargs, () => Module(instFxn()))
+    val instModule = {() => Module(new AXIAccelWrapper(fxn))}
+    chiselMain(vargs, instModule)
   }
 
   def makeHarnessTest(cmpName: String,
