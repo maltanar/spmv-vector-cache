@@ -15,6 +15,7 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
     val doneRegular = Bool(OUTPUT)
     val doneWrite = Bool(OUTPUT)
     val decodeErrors = UInt(OUTPUT, width = 32)
+    val backendDebug = UInt(OUTPUT, width = 32)
     // value inputs
     val numRows = UInt(INPUT, width = 32)
     val numCols = UInt(INPUT, width = 32)
@@ -124,4 +125,6 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
 
   for(rc <- regularComps) { rc.ctrl.start := io.startRegular }
   for(wc <- writeComps) { wc.ctrl.start := io.startWrite }
+
+  io.backendDebug := Cat(regularComps.map(x=>x.stat.finished) ++ List(wrCompl.finished))
 }
