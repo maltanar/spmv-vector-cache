@@ -99,7 +99,7 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   val inpVecMon = Module(new StreamReducer(opWidth, 0, redFxn)).io
   inpVecMon.streamIn <> backend.inputVecOut
   inpVecMon.start := in.startRegular
-  inpVecMon.byteCount := in.numRows * ptrBytes
+  inpVecMon.byteCount := in.numCols * opBytes
   out.redInputVec0 := inpVecMon.reduced(31,0)
   out.redInputVec1 := inpVecMon.reduced(63,32)
   out.inpVecMonFinished := inpVecMon.finished
@@ -121,19 +121,19 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
       if (rem != 0) { res += align-rem}
       return res
     }
-    val numRows = 1024
-    val numCols = 1024
-    val numNZ = 4096
+    val numRows = 64
+    val numCols = 63
+    val numNZ = 256
     val colPtrStart = 0
     val rowIndStart = alignedIncrement(colPtrStart, 4*(numCols+1), 64)
     val nzDataStart = alignedIncrement(rowIndStart, 4*numNZ, 64)
     val inpVecStart = alignedIncrement(nzDataStart, 8*numNZ, 64)
     val outVecStart = alignedIncrement(inpVecStart, 8*numCols, 64)
     // initialize buffers
-    for(i <- 0 until (numCols+1)/2) {t.writeMem(colPtrStart+i*8, i)}
-    for(i <- 0 until numNZ/2) {t.writeMem(rowIndStart+i*8, i)}
-    for(i <- 0 until numNZ) {t.writeMem(nzDataStart+i*8, i)}
-    for(i <- 0 until numCols) {t.writeMem(inpVecStart+i*8, i)}
+    for(i <- 0 until (numCols+1)/2) {t.writeMem(colPtrStart+i*8, i+1)}
+    for(i <- 0 until numNZ/2) {t.writeMem(rowIndStart+i*8, i+1)}
+    for(i <- 0 until numNZ) {t.writeMem(nzDataStart+i*8, i+1)}
+    for(i <- 0 until numCols) {t.writeMem(inpVecStart+i*8, i+1)}
     for(i <- 0 until numRows) {t.writeMem(outVecStart+i*8, 0)}
     t.writeReg("in_numRows", numRows)
     t.writeReg("in_numCols", numCols)
@@ -143,24 +143,24 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
     t.writeReg("in_baseNZData", nzDataStart)
     t.writeReg("in_baseInputVec", inpVecStart)
     t.writeReg("in_baseOutputVec", outVecStart)
+    t.printAllRegs()
     // test backend writeout mode
     t.expectReg("out_outVecGenFinished", 0)
     t.expectReg("out_doneWrite", 0)
     t.writeReg("in_startWrite", 1)
     while(t.readReg("out_outVecGenFinished") != 1) { t.step(1)}
     while(t.readReg("out_doneWrite") != 1) { t.step(1)}
-    for(i <- 0 until numRows) {
-      t.expectMem(i*8, i)
-    }
+    for(i <- 0 until numRows) {t.expectMem(outVecStart+i*8, i)}
     t.writeReg("in_startWrite", 0)
     t.expectReg("out_outVecGenFinished", 0)
     t.expectReg("out_doneWrite", 0)
     // test regular operation mode
     t.expectReg("out_doneRegular", 0)
     t.writeReg("in_startRegular", 1)
-    while(t.readReg("out_doneRegular") != 1) { t.step(1)}
-    t.writeReg("in_startRegular", 0)
+    while(t.readReg("out_doneRegular") != 1) { t.step(1); t.printAllRegs()}
+    /*t.writeReg("in_startRegular", 0)
     t.expectReg("out_doneRegular", 0)
+    */
 
     return true
   }
