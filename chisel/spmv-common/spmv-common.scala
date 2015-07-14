@@ -43,3 +43,25 @@ object alignTo {
     return Mux(isAligned, x, Cat(upper+UInt(1), UInt(0, width = numZeroAddrBits)))
   }
 }
+
+class CustomQueue[T <: Data](gen: T, entries: Int) extends Module {
+  val io = new QueueIO(gen, entries)
+
+  // TODO internally construct appropriate generic/prebuilt queue,
+  // depending on parameters
+  val idString = gen.getWidth().toString + "x" + entries.toString
+  val blackBoxSet = Set("32x256", "32x512", "64x256", "64x512")
+
+  if(blackBoxSet(idString)) {
+    val bbm = Module(new BlackBox() {
+      val io = new QueueIO(gen, entries)
+      // TODO rename signals to match Xilinx template
+      moduleName = "CustomQueue"+idString
+    }).io
+    bbm <> io
+  } else {
+    // no blackbox for this instance, make regular queue
+    val q = Module(new Queue(gen, entries)).io
+    q <> io
+  }
+}
