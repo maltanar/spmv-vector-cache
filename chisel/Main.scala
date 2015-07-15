@@ -21,6 +21,7 @@ object MainObj {
   def printUsageAndExit() {
     println("Usage: sbt \"run <op> <comp>\"")
     println("where <op> = {inst | test}")
+    println("<comp> = {" + instFxnMap.keys.reduce(_ +" | "+ _) + "}")
     System.exit(0)
   }
 
