@@ -5,6 +5,10 @@ import Chisel._
 class SemiringOperands(val w: Int) extends Bundle {
   val first = UInt(width = w)
   val second = UInt(width = w)
+
+  override def clone = {
+    new SemiringOperands(w).asInstanceOf[this.type]
+  }
 }
 
 object SemiringOperands {

@@ -12,7 +12,7 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   val idType = UInt(width=p.ptrWidth)
   val syncOpType = new SemiringOperands(p.opWidth)
   val io = new Bundle {
-    val enable = Bool(true)
+    val enable = Bool(INPUT)
     val opCount = UInt(OUTPUT, width = 32)
     val operands = Decoupled(new OperandWithID(p.opWidth, p.ptrWidth)).flip
     val mcif = new OCMControllerIF(pOCM)
@@ -31,6 +31,7 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   // TODO is this +1 necessary? replace with ocmWriteLatency?
   lazy val rawLatency = adder.latency + p.ocmReadLatency + 1
 
+  // TODO expose hazard count to parent
   val guard = Module(new HazardGuard(p.opWidth, p.idWidth, rawLatency)).io
   guard.streamIn <> io.operands
 
@@ -44,8 +45,9 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   loadPort.req.addr := hazardFreeOps.bits.id
   // shift register to determine load completion
   val loadValid = ShiftRegister(hazardFreeOps.valid, p.ocmReadLatency)
-  opQ.enq.valid := hazardFreeOps.valid
-  idQ.enq.valid := hazardFreeOps.valid
+  opQ.enq.valid := hazardFreeOps.valid & idQ.enq.ready
+  idQ.enq.valid := hazardFreeOps.valid & opQ.enq.ready
+  hazardFreeOps.ready := opQ.enq.ready & idQ.enq.ready
 
 
   // join operans for addition
@@ -54,6 +56,7 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   addOpJoin.inA <> opQ.deq
   addOpJoin.inB.valid := loadValid
   addOpJoin.inB.bits := loadPort.rsp.readData
+  //addOpJoin.inB.bits.ready
   addOpJoin.out <> adder.io.in
 
   // save adder output into contextStore (addr given by idQ)
@@ -62,7 +65,7 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   savePort.req.addr := idQ.deq.bits
   savePort.req.writeData := adder.io.out.bits
 
-
+  // use enable as backpressure signal in several places
   adder.io.out.ready := io.enable
   idQ.deq.ready := io.enable
 

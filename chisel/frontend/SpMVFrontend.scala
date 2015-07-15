@@ -63,6 +63,7 @@ class SpMVFrontend(val p: SpMVAccelWrapperParams) extends Module {
   val reducer = Module(new InterleavedReduceOCM(p)).io
   reducer.operands <> redJoin.out
 
+  reducer.enable := io.startRegular
   // TODO expose more specific controls instead
   // OCM controller kicks off with init (fill) or write (dump)
   reducer.mcif.start := io.startInit | io.startWrite
