@@ -63,5 +63,6 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   adder.io.out.ready := Bool(false)
   idQ.deq.ready := Bool(false)
 
-  // TODO add control state machine + set enables
+  // TODO enable input
+  // TODO add counters?
 }
