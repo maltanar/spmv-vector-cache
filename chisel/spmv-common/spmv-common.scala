@@ -32,7 +32,7 @@ class SpMVAccelWrapperParams() extends BaseWrapperParams() {
   // number of contexts in context storage
   val ocmDepth = 1024
   val ocmPrebuilt = false
-  val ocmLatency = 1
+  val ocmReadLatency = 1
   val ocmName = "WrapperBRAM"+opWidth.toString+"x"+ocmDepth.toString
 }
 
