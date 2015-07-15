@@ -99,11 +99,15 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   })
   io.decodeErrors := deintl.io.decodeErrors
   deintl.io.rspIn <> io.memRdRsp
-  // connect deinterleaver to outputs to frontend, with downsizers where necessary
-  io.colPtrOut <> StreamDownsizer(StreamFilter(deintl.io.rspOut(0), genO, filterFxn), 32)
-  io.rowIndOut <> StreamDownsizer(StreamFilter(deintl.io.rspOut(1), genO, filterFxn), 32)
-  io.nzDataOut <> StreamFilter(deintl.io.rspOut(2), genO, filterFxn)
-  io.inputVecOut <>  StreamFilter(deintl.io.rspOut(3), genO, filterFxn)
+  // connect deinterleaver to outputs to frontend,
+  // use only actual read data from read response channel (no error checking etc.)
+  val readData = deintl.io.rspOut.map(StreamFilter(_, genO, filterFxn))
+  // - use downsizers to adjust stream width where appropriate
+  // - use limiters on all channels to get rid of superflous (alignment) bytes
+  io.colPtrOut <> StreamLimiter(StreamDownsizer(readData(0), p.ptrWidth), io.startRegular, colPtrBytes)
+  io.rowIndOut <> StreamLimiter(StreamDownsizer(readData(1), p.ptrWidth), io.startRegular, rowIndBytes)
+  io.nzDataOut <> StreamLimiter(readData(2), io.startRegular, nzBytes)
+  io.inputVecOut <> StreamLimiter(readData(3), io.startRegular, inputVecBytes)
 
   // instantiate write req gen
   val rqWrite = Module(new WriteReqGen(pMem, idBase+4)).io
