@@ -7,6 +7,14 @@ class SemiringOperands(val w: Int) extends Bundle {
   val second = UInt(width = w)
 }
 
+object SemiringOperands {
+  def apply(w: Int, first: UInt, second: UInt) = {
+    val sop = new SemiringOperands(w)
+    sop.first := first
+    sop.second := second
+    sop
+  }
+}
 
 // base class for semiring operators
 // exposes a Valid-wrapped (UInt, UInt) => UInt interface, and the op latency
