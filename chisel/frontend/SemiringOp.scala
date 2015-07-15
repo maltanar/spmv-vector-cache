@@ -2,30 +2,33 @@ package SpMVAccel
 
 import Chisel._
 
+class SemiringOperands(val w: Int) extends Bundle {
+  val first = UInt(width = w)
+  val second = UInt(width = w)
+}
+
+
 // base class for semiring operators
 // exposes a Valid-wrapped (UInt, UInt) => UInt interface, and the op latency
 abstract class SemiringOp(val w: Int) extends Module {
   val io = new Bundle {
-    val first = Decoupled(UInt(width = w)).flip
-    val second = Decoupled(UInt(width = w)).flip
-    val result = Decoupled(UInt(width = w))
+    val in = Decoupled(new SemiringOperands(w)).flip
+    val out = Decoupled(UInt(width = w))
   }
   lazy val latency: Int = 0
 }
 
 // combinatorial variants of UInt add and multiply
 class OpAddCombinatorial(w: Int) extends SemiringOp(w) {
-  io.result.bits := io.first.bits + io.second.bits
-  io.result.valid := io.first.valid & io.second.valid
-  io.first.ready := io.result.ready
-  io.second.ready := io.result.ready
+  io.out.bits := io.in.bits.first + io.in.bits.second
+  io.out.valid := io.in.valid
+  io.in.ready := io.out.ready
 }
 
 class OpMulCombinatorial(w: Int) extends SemiringOp(w) {
-  io.result.bits := io.first.bits + io.second.bits
-  io.result.valid := io.first.valid & io.second.valid
-  io.first.ready := io.result.ready
-  io.second.ready := io.result.ready
+  io.out.bits := io.in.bits.first + io.in.bits.second
+  io.out.valid := io.in.valid
+  io.in.ready := io.out.ready
 }
 
 // 1-stage variants of UInt add and multiply
@@ -33,16 +36,15 @@ class OpAddSingleStage(w: Int) extends SemiringOp(w) {
   override lazy val latency: Int = 1
   val regValid = Reg(init = Bool(false))
   val regData = Reg(init = UInt(0, w))
-  val allowNewData = (!regValid || io.result.ready)
+  val allowNewData = (!regValid || io.out.ready)
 
-  io.result.bits := regData
-  io.result.valid := regValid
-  io.first.ready := allowNewData
-  io.second.ready := allowNewData
+  io.out.bits := regData
+  io.out.valid := regValid
+  io.in.ready := allowNewData
 
   when(allowNewData) {
-    regData := io.first.bits + io.second.bits
-    regValid := io.first.valid & io.second.valid
+    regData := io.in.bits.first + io.in.bits.second
+    regValid := io.in.valid
   }
 }
 
@@ -50,15 +52,14 @@ class OpMulSingleStage(w: Int) extends SemiringOp(w) {
   override lazy val latency: Int = 1
   val regValid = Reg(init = Bool(false))
   val regData = Reg(init = UInt(0, w))
-  val allowNewData = (!regValid || io.result.ready)
+  val allowNewData = (!regValid || io.out.ready)
 
-  io.result.bits := regData
-  io.result.valid := regValid
-  io.first.ready := allowNewData
-  io.second.ready := allowNewData
+  io.out.bits := regData
+  io.out.valid := regValid
+  io.in.ready := allowNewData
 
   when(allowNewData) {
-    regData := io.first.bits * io.second.bits
-    regValid := io.first.valid & io.second.valid
+    regData := io.in.bits.first * io.in.bits.second
+    regValid := io.in.valid
   }
 }
