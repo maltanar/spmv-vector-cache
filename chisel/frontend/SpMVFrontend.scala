@@ -13,8 +13,17 @@ class SpMVFrontend(val p: SpMVAccelWrapperParams) extends Module {
   val pOCM = new OCMParameters( p.ocmDepth*p.opWidth, p.opWidth, p.opWidth, 2,
                                 p.ocmReadLatency)
   val io = new Bundle {
-    val mcif = new OCMControllerIF(pOCM)
-    // TODO mode setting input (init/regular/dump)
+    // control
+    val startInit = Bool(INPUT)
+    val startRegular = Bool(INPUT)
+    val startWrite = Bool(INPUT)
+    // status
+    val doneInit = Bool(OUTPUT)
+    val doneRegular = Bool(OUTPUT)
+    val doneWrite = Bool(OUTPUT)
+    // TODO debug+profiling outputs
+    // value inputs
+    val numNZ = UInt(INPUT, width = 32)
     // data exchange with backend
     val colPtrIn = Decoupled(UInt(width = p.ptrWidth)).flip
     val rowIndIn = Decoupled(UInt(width = p.ptrWidth)).flip
@@ -22,7 +31,6 @@ class SpMVFrontend(val p: SpMVAccelWrapperParams) extends Module {
     val inputVecIn = Decoupled(UInt(width = p.opWidth)).flip
     val outputVecOut = Decoupled(UInt(width = p.opWidth))
   }
-  // TODO connect backpressure signals!
   // instantiate multiply operator
   val mul = Module(p.makeMul())
   // instantiate StreamDelta and StreamRepeatElem
@@ -56,9 +64,19 @@ class SpMVFrontend(val p: SpMVAccelWrapperParams) extends Module {
   reducer.operands <> redJoin.out
 
   // TODO expose more specific controls instead
-  reducer.mcif <> io.mcif
-
-  io.outputVecOut <> io.mcif.dumpPort
+  // OCM controller kicks off with init (fill) or write (dump)
+  reducer.mcif.start := io.startInit | io.startWrite
+  reducer.mcif.mode := Mux(io.startWrite, UInt(1), UInt(0))
+  // set fill port to an always-zero stream
+  // TODO make result vec. initial value customizable?
+  reducer.mcif.fillPort.valid := Bool(true)
+  reducer.mcif.fillPort.bits := UInt(0)
+  // connect OCMC dump port to result vec. output
+  io.outputVecOut <> reducer.mcif.dumpPort
+  // init and write done signals driven directly by the OCMC
+  io.doneInit := reducer.mcif.done
+  io.doneWrite := reducer.mcif.done
+  io.doneRegular := (reducer.opCount === io.numNZ)
 
   // TODO emit statistics (hazards, etc)
   // TODO finish wire-up + test

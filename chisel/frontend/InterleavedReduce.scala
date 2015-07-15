@@ -12,6 +12,8 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   val idType = UInt(width=p.ptrWidth)
   val syncOpType = new SemiringOperands(p.opWidth)
   val io = new Bundle {
+    val enable = Bool(true)
+    val opCount = UInt(OUTPUT, width = 32)
     val operands = Decoupled(new OperandWithID(p.opWidth, p.ptrWidth)).flip
     val mcif = new OCMControllerIF(pOCM)
   }
@@ -55,14 +57,23 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   addOpJoin.out <> adder.io.in
 
   // save adder output into contextStore (addr given by idQ)
-  savePort.req.writeEn := adder.io.out.valid & idQ.deq.valid
+  val resultValid = adder.io.out.valid & idQ.deq.valid
+  savePort.req.writeEn := resultValid
   savePort.req.addr := idQ.deq.bits
   savePort.req.writeData := adder.io.out.bits
 
-  // default outputs
-  adder.io.out.ready := Bool(false)
-  idQ.deq.ready := Bool(false)
 
-  // TODO enable input
-  // TODO add counters?
+  adder.io.out.ready := io.enable
+  idQ.deq.ready := io.enable
+
+  // register for counting completed operations
+  val regOpCount = Reg(init = UInt(0, 32))
+  io.opCount := regOpCount
+  // TODO use "write complete" signal when available -- may be write latency
+  when (!io.enable) {regOpCount := UInt(0)}
+  .otherwise {
+    when (resultValid) {regOpCount := regOpCount + UInt(1)}
+  }
+
+  // TODO add more counters?
 }
