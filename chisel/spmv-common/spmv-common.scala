@@ -2,6 +2,7 @@ package SpMVAccel
 
 import Chisel._
 import TidbitsAXI._
+import TidbitsOCM._
 
 class BaseWrapperParams() extends AXIAccelWrapperParams(
   addrWidth = 32,
@@ -24,9 +25,15 @@ class SpMVAccelWrapperParams() extends BaseWrapperParams() {
   val rowIndBurstBeats: Int = 8
   val nzDataBurstBeats: Int = 8
   val inpVecBurstBeats: Int = 1
-  // TODO add more params: caching type, OCM depth...
+  // semiring op definitions
   val makeAdd: () => SemiringOp = {() => new OpAddCombinatorial(opWidth)}
   val makeMul: () => SemiringOp = {() => new OpMulCombinatorial(opWidth)}
+  // OCM parameters -- TODO separate into own trait/class?
+  // number of contexts in context storage
+  val ocmDepth = 1024
+  val ocmPrebuilt = false
+  val ocmLatency = 1
+  val ocmName = "WrapperBRAM"+opWidth.toString+"x"+ocmDepth.toString
 }
 
 
