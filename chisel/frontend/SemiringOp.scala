@@ -38,7 +38,7 @@ class OpAddCombinatorial(w: Int) extends SemiringOp(w) {
 }
 
 class OpMulCombinatorial(w: Int) extends SemiringOp(w) {
-  io.out.bits := io.in.bits.first + io.in.bits.second
+  io.out.bits := io.in.bits.first * io.in.bits.second
   io.out.valid := io.in.valid
   io.in.ready := io.out.ready
 }
