@@ -74,8 +74,9 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   savePort.req.writeData := adder.io.out.bits
 
   // use enable as backpressure signal in several places
-  adder.io.out.ready := io.enable
-  idQ.deq.ready := io.enable
+  // idQ and adder streams proceed in lockstep
+  adder.io.out.ready := io.enable &  idQ.deq.valid
+  idQ.deq.ready := io.enable & adder.io.out.valid
 
   // register for counting completed operations
   val regOpCount = Reg(init = UInt(0, 32))
