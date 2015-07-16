@@ -18,12 +18,15 @@ class TestSpMVFrontend() extends AXIWrappableAccel(TestSpMVFrontend.p) {
   val opWidth = TestSpMVFrontend.p.opWidth
   val ptrWidth = TestSpMVFrontend.p.ptrWidth
 
+  class SeqParams(w: Int) extends Bundle {
+    val init = UInt(width = w)
+    val step = UInt(width = w)
+    override def clone = {new SeqParams(w).asInstanceOf[this.type]}
+  }
+
   object SeqParams{
-    def apply(w: Int): Bundle = {
-      new Bundle {
-        val init = UInt(width = w)
-        val step = UInt(width = w)
-      }
+    def apply(w: Int): SeqParams = {
+      new SeqParams(w)
     }
   }
 
@@ -55,24 +58,26 @@ class TestSpMVFrontend() extends AXIWrappableAccel(TestSpMVFrontend.p) {
 
   override lazy val regMap = manageRegIO(in, out)
 
-  val frontend = Module(new SpMVFrontend(TestSpMVFrontend.p)).io
+
+  val frontendM = Module(new SpMVFrontend(TestSpMVFrontend.p))
+  val frontend = frontendM.io
 
   // sequence generators on all backend inputs
   val colPtrGen = Module(new SequenceGenerator(ptrWidth)).io
   colPtrGen.seq <> frontend.colPtrIn
-  colPtrGen <> in.colPtrP
+  in.colPtrP <> colPtrGen
   colPtrGen.count := in.numCols+UInt(1)
   val rowIndGen = Module(new SequenceGenerator(ptrWidth)).io
   rowIndGen.seq <> frontend.rowIndIn
-  rowIndGen <> in.rowIndP
+  in.rowIndP <> rowIndGen
   rowIndGen.count := in.numNZ
   val nzDataGen = Module(new SequenceGenerator(opWidth)).io
   nzDataGen.seq <> frontend.nzDataIn
-  nzDataGen <> in.nzDataP
+  in.nzDataP <> nzDataGen
   nzDataGen.count := in.numNZ
   val inpVecGen = Module(new SequenceGenerator(opWidth)).io
   inpVecGen.seq <> frontend.inputVecIn
-  inpVecGen <> in.inputVecP
+  in.inputVecP <> inpVecGen
   inpVecGen.count := in.numCols
   val gens = List(colPtrGen, rowIndGen, nzDataGen, inpVecGen)
   for(gen <- gens) {
@@ -83,11 +88,66 @@ class TestSpMVFrontend() extends AXIWrappableAccel(TestSpMVFrontend.p) {
   val redFxn = {(a:UInt, b:UInt) => a+b}
   val outVecRed = Module(new StreamReducer(opWidth, 0, redFxn)).io
   outVecRed.streamIn <> frontend.outputVecOut
-  outVecRed.byteCount := in.numRows*UInt(opWidth)
+  outVecRed.byteCount := in.numRows*UInt(opWidth/8)
+  outVecRed.start := in.startWrite
   out.redOutputVec := outVecRed.reduced
 
   out.doneWrite := outVecRed.finished
   in <> frontend
   out <> frontend
+
+  // test
+  override def defaultTest(t: WrappableAccelTester): Boolean = {
+    def sumUpTo(x: Int): Int = {return (x*(x+1))/2}
+    super.defaultTest(t)
+    // initialize frontend and check
+    t.writeReg("in_startInit", 1)
+    while(t.readReg("out_doneInit") != 1) {}
+    t.writeReg("in_startInit", 0)
+    t.expectReg("out_doneInit", 0)
+    t.expect(frontendM.reducer.mcif.busy, 0)
+    t.writeReg("in_startWrite", 1)
+    while(t.readReg("out_doneWrite") != 1) {}
+    t.expectReg("out_redOutputVec", 0)
+    t.writeReg("in_startWrite", 0)
+    t.expectReg("out_doneWrite", 0)
+    t.expect(frontendM.reducer.mcif.busy, 0)
+    // set up sequence generators
+    val numRows = 64
+    val numCols = 64
+    val numNZ = 64
+    t.writeReg("in_numRows", numRows)
+    t.writeReg("in_numCols", numCols)
+    t.writeReg("in_numNZ", numNZ)
+    // identity matrix (no hazards)
+    // colptr: 1 elem per column
+    t.writeReg("in_colPtrP_init", 0)
+    t.writeReg("in_colPtrP_step", 1)
+    // rowind: linearly increasing
+    t.writeReg("in_rowIndP_init", 0)
+    t.writeReg("in_rowIndP_step", 1)
+    // nz data: all ones
+    t.writeReg("in_nzDataP_init", 1)
+    t.writeReg("in_nzDataP_step", 0)
+    // input vector: 1...n
+    t.writeReg("in_inputVecP_init", 1)
+    t.writeReg("in_inputVecP_step", 1)
+    // start regular operation
+    t.writeReg("in_startRegular", 1)
+    var k:Int = 0
+    while(t.readReg("out_doneRegular") != 1) {}
+    t.step(10)
+    t.expect(frontendM.reducer.hazardStalls, 0)
+    t.expect(frontendM.reducer.opCount, numNZ)
+    t.writeReg("in_startRegular", 0)
+
+    // write result
+    t.writeReg("in_startWrite", 1)
+    var c:Int = 0
+    while(t.readReg("out_doneWrite") != 1) {}
+    t.expectReg("out_redOutputVec", sumUpTo(numRows))
+    t.writeReg("in_startWrite", 0)
+    return true
+  }
 
 }
