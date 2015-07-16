@@ -100,6 +100,12 @@ class TestSpMVFrontend() extends AXIWrappableAccel(TestSpMVFrontend.p) {
   override def defaultTest(t: WrappableAccelTester): Boolean = {
     def sumUpTo(x: Int): Int = {return (x*(x+1))/2}
     super.defaultTest(t)
+    var numRows = 64
+    var numCols = 64
+    var numNZ = 64
+    t.writeReg("in_numRows", numRows)
+    t.writeReg("in_numCols", numCols)
+    t.writeReg("in_numNZ", numNZ)
     // initialize frontend and check
     t.writeReg("in_startInit", 1)
     while(t.readReg("out_doneInit") != 1) {}
@@ -112,13 +118,6 @@ class TestSpMVFrontend() extends AXIWrappableAccel(TestSpMVFrontend.p) {
     t.writeReg("in_startWrite", 0)
     t.expectReg("out_doneWrite", 0)
     t.expect(frontendM.reducer.mcif.busy, 0)
-    // set up sequence generators
-    val numRows = 64
-    val numCols = 64
-    val numNZ = 64
-    t.writeReg("in_numRows", numRows)
-    t.writeReg("in_numCols", numCols)
-    t.writeReg("in_numNZ", numNZ)
     // identity matrix (no hazards)
     // colptr: 1 elem per column
     t.writeReg("in_colPtrP_init", 0)
@@ -134,19 +133,57 @@ class TestSpMVFrontend() extends AXIWrappableAccel(TestSpMVFrontend.p) {
     t.writeReg("in_inputVecP_step", 1)
     // start regular operation
     t.writeReg("in_startRegular", 1)
-    var k:Int = 0
     while(t.readReg("out_doneRegular") != 1) {}
-    t.step(10)
     t.expect(frontendM.reducer.hazardStalls, 0)
     t.expect(frontendM.reducer.opCount, numNZ)
     t.writeReg("in_startRegular", 0)
-
     // write result
     t.writeReg("in_startWrite", 1)
-    var c:Int = 0
     while(t.readReg("out_doneWrite") != 1) {}
     t.expectReg("out_redOutputVec", sumUpTo(numRows))
     t.writeReg("in_startWrite", 0)
+
+    // TODO should not be necessary! fix StreamDeltaGen
+    t.reset(10)
+    // ************************************************************************
+    // change matrix: row vector (1x64), full of hazards
+    numRows = 1
+    t.writeReg("in_numRows", numRows)
+    t.writeReg("in_numCols", numCols)
+    t.writeReg("in_numNZ", numNZ)
+
+    // re-initialize result mem
+    t.writeReg("in_startInit", 1)
+    while(t.readReg("out_doneInit") != 1) {}
+    t.writeReg("in_startInit", 0)
+    // setup sequence gens
+
+    // colptr: 1 elem per column
+    t.writeReg("in_colPtrP_init", 0)
+    t.writeReg("in_colPtrP_step", 1)
+    // rowind: constant 0
+    t.writeReg("in_rowIndP_init", 0)
+    t.writeReg("in_rowIndP_step", 0)
+    // nz data: all ones
+    t.writeReg("in_nzDataP_init", 1)
+    t.writeReg("in_nzDataP_step", 0)
+    // input vector: 1...n
+    t.writeReg("in_inputVecP_init", 1)
+    t.writeReg("in_inputVecP_step", 1)
+
+    // start operation
+    t.writeReg("in_startRegular", 1)
+    while(t.readReg("out_doneRegular") != 1) {}
+    t.peek(frontendM.reducer.hazardStalls)
+    t.expect(frontendM.reducer.opCount, numNZ)
+    t.writeReg("in_startRegular", 0)
+    // write result
+    t.writeReg("in_startWrite", 1)
+    while(t.readReg("out_doneWrite") != 1) {}
+    t.expectReg("out_redOutputVec", sumUpTo(numNZ))
+    t.writeReg("in_startWrite", 0)
+    
+    println("All tests finished")
     return true
   }
 
