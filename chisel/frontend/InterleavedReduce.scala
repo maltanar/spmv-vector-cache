@@ -14,6 +14,7 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   val io = new Bundle {
     val enable = Bool(INPUT)
     val opCount = UInt(OUTPUT, width = 32)
+    val hazardStalls = UInt(OUTPUT, width = 32)
     val operands = Decoupled(new OperandWithID(p.opWidth, p.ptrWidth)).flip
     val mcif = new OCMControllerIF(pOCM)
   }
@@ -34,6 +35,7 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   // TODO expose hazard count to parent
   val guard = Module(new HazardGuard(p.opWidth, p.idWidth, rawLatency)).io
   guard.streamIn <> io.operands
+  io.hazardStalls := guard.hazardStalls
 
   val hazardFreeOps = guard.streamOut
 

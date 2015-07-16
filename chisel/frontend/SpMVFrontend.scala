@@ -24,6 +24,7 @@ class SpMVFrontend(val p: SpMVAccelWrapperParams) extends Module {
     // TODO debug+profiling outputs
     // value inputs
     val numNZ = UInt(INPUT, width = 32)
+    val numRows = UInt(INPUT, width = 32)
     // data exchange with backend
     val colPtrIn = Decoupled(UInt(width = p.ptrWidth)).flip
     val rowIndIn = Decoupled(UInt(width = p.ptrWidth)).flip
@@ -60,7 +61,8 @@ class SpMVFrontend(val p: SpMVAccelWrapperParams) extends Module {
 
   // instantiate + connect InterleavedReduce
   // TODO parametrize construction (e.g instantiate cache instead)?
-  val reducer = Module(new InterleavedReduceOCM(p)).io
+  val reducerM = Module(new InterleavedReduceOCM(p))
+  val reducer = reducerM.io
   reducer.operands <> redJoin.out
 
   reducer.enable := io.startRegular
@@ -72,6 +74,10 @@ class SpMVFrontend(val p: SpMVAccelWrapperParams) extends Module {
   // TODO make result vec. initial value customizable?
   reducer.mcif.fillPort.valid := Bool(true)
   reducer.mcif.fillPort.bits := UInt(0)
+  // set up fill/dump start+range
+  // may not need entire OCM, depends on numRows
+  reducer.mcif.fillDumpStart := UInt(0)
+  reducer.mcif.fillDumpCount := UInt(io.numRows)
   // connect OCMC dump port to result vec. output
   io.outputVecOut <> reducer.mcif.dumpPort
   // init and write done signals driven directly by the OCMC
