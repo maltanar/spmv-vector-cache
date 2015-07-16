@@ -5,11 +5,11 @@ import TidbitsAXI._
 import TidbitsStreams._
 import TidbitsSimUtils._
 
-object Test {
+object TestSpMVBackend {
   val p = new SpMVAccelWrapperParams()
 }
 
-class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
+class TestSpMVBackend() extends AXIWrappableAccel(TestSpMVBackend.p) {
   override lazy val accelVersion: String = "sim-test-only"
 
   plugRegOuts()
@@ -51,7 +51,7 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   override lazy val regMap = manageRegIO(in, out)
 
   // instantiate backend, connect memory port
-  val backend = Module(new SpMVBackend(Test.p, 0)).io
+  val backend = Module(new SpMVBackend(TestSpMVBackend.p, 0)).io
   // use partial interface fulfilment to connect backend interfaces
   // produces warnings, but should work fine
   backend <> in
@@ -69,8 +69,8 @@ class TestSpMVBackend() extends AXIWrappableAccel(Test.p) {
   backend.fbInputVec := UInt(0)
 
   // monitors on all backend outputs
-  val ptrWidth = Test.p.ptrWidth
-  val opWidth = Test.p.opWidth
+  val ptrWidth = TestSpMVBackend.p.ptrWidth
+  val opWidth = TestSpMVBackend.p.opWidth
   val ptrBytes = UInt(ptrWidth/8)
   val opBytes = UInt(opWidth/8)
   val redFxn = {(a:UInt, b:UInt) => a+b}
