@@ -35,9 +35,11 @@ class SpMVFrontend(val p: SpMVAccelWrapperParams) extends Module {
   // instantiate multiply operator
   val mul = Module(p.makeMul())
   // instantiate StreamDelta and StreamRepeatElem
-  val deltaGen = Module(new StreamDelta(p.ptrWidth)).io
+  val deltaGenM = Module(new StreamDelta(p.ptrWidth))
+  val deltaGen = deltaGenM.io
   deltaGen.samples <> io.colPtrIn
-  val rptGen = Module(new StreamRepeatElem(p.opWidth, p.ptrWidth)).io
+  val rptGenM = Module(new StreamRepeatElem(p.opWidth, p.ptrWidth))
+  val rptGen = rptGenM.io
   rptGen.inElem <> io.inputVecIn
   rptGen.inRepCnt <> deltaGen.deltas
 
@@ -47,6 +49,12 @@ class SpMVFrontend(val p: SpMVAccelWrapperParams) extends Module {
   mulOpJoin.inA <> rptGen.out
   mulOpJoin.inB <> io.nzDataIn
   mul.io.in <> mulOpJoin.out
+  // uncomment to debug multiplier inputs
+  /*
+  when(mulOpJoin.inA.valid & mulOpJoin.inB.valid) {
+    printf("MUL %x * %x\n", mulOpJoin.inA.bits, mulOpJoin.inB.bits)
+  }
+  */
 
   // add a queue to buffer multiplier results, in case of stalls
   // this will let the pipes continue a while longer

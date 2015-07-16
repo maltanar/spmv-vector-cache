@@ -38,6 +38,10 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   io.hazardStalls := guard.hazardStalls
 
   val hazardFreeOps = guard.streamOut
+  // uncomment to debug hazard-free op inputs
+  /*when(hazardFreeOps.valid) {
+    printf("OP id=%x data=%x\n", hazardFreeOps.bits.id, hazardFreeOps.bits.data)
+  }*/
 
   // TODO parametrize depths
   val opQ = Module(new Queue(opType, 4)).io
@@ -60,6 +64,8 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   addOpJoin.inB.bits := loadPort.rsp.readData
   //addOpJoin.inB.bits.ready
   addOpJoin.out <> adder.io.in
+  // uncomment to debug adder inputs
+  //when(adder.io.in.valid) {printf("ADD %x + %x\n", adder.io.in.bits.first, adder.io.in.bits.second)}
 
   // save adder output into contextStore (addr given by idQ)
   val resultValid = adder.io.out.valid & idQ.deq.valid
