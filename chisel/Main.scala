@@ -27,7 +27,8 @@ object MainObj {
 
   val instFxnMap: Map[String, () => AXIWrappableAccel] = Map(
     "SpMVAccel" -> {() => new SpMVAccelerator(p)},
-    "TestSpMVBackend" -> {() => new TestSpMVBackend()}
+    "TestSpMVBackend" -> {() => new TestSpMVBackend()},
+    "TestSpMVFrontend" -> {() => new TestSpMVFrontend()}
   )
 
   def main(args: Array[String]): Unit = {
