@@ -31,11 +31,20 @@ class SpMVAccelWrapperParams() extends BaseWrapperParams() {
   // OCM parameters -- TODO separate into own trait/class?
   // number of contexts in context storage
   val ocmDepth = 1024
-  val ocmPrebuilt = false
+  // generate slightly different hardware depending on the backend:
+  // - for Verilog, generate wrapper blackboxes for premade IP
+  // - for everything else, generate Chisel-built components
+  // TODO add directly to OCMParameters?
+  lazy val ocmPrebuilt = if(isVerilog()) true else false
   val ocmReadLatency = 1
   val ocmName = "WrapperBRAM"+opWidth.toString+"x"+ocmDepth.toString
 }
 
+object isVerilog {
+  def apply(): Boolean = {
+    Driver.backend.getClass().getSimpleName() == "VerilogBackend"
+  }
+}
 
 // size alignment in hardware
 // if lower bits are not zero (=not aligned), increment upper bits by one,
@@ -58,8 +67,9 @@ class CustomQueue[T <: Data](gen: T, entries: Int) extends Module {
   // depending on parameters
   val idString = gen.getWidth().toString + "x" + entries.toString
   val blackBoxSet = Set("32x256", "32x512", "64x256", "64x512")
+  val enableBlackBox = isVerilog()
 
-  if(blackBoxSet(idString)) {
+  if(blackBoxSet(idString) && enableBlackBox) {
     val bbm = Module(new BlackBox() {
       val io = new QueueIO(gen, entries)
       // TODO rename signals to match Xilinx template
