@@ -142,8 +142,7 @@ class TestSpMVFrontend() extends AXIWrappableAccel(TestSpMVFrontend.p) {
     while(t.readReg("out_doneWrite") != 1) {}
     t.expectReg("out_redOutputVec", sumUpTo(numRows))
     t.writeReg("in_startWrite", 0)
-
-    // TODO should not be necessary! fix StreamDeltaGen
+    // reset accelerator between invocations
     t.reset(10)
     // ************************************************************************
     // change matrix: row vector (1x64), full of hazards
