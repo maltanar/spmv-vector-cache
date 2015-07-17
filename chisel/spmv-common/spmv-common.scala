@@ -20,6 +20,7 @@ class SpMVAccelWrapperParams() extends BaseWrapperParams() {
   val rowIndFIFODepth: Int = 512
   val nzDataFIFODepth: Int = 512
   val inpVecFIFODepth: Int = 256
+  val outVecFIFODepth: Int = 0
   // burst beats for the backend channels
   val colPtrBurstBeats: Int = 1
   val rowIndBurstBeats: Int = 8
@@ -63,17 +64,20 @@ object alignTo {
 class CustomQueue[T <: Data](gen: T, entries: Int) extends Module {
   val io = new QueueIO(gen, entries)
 
-  // TODO internally construct appropriate generic/prebuilt queue,
-  // depending on parameters
+  // internally construct appropriate generic/prebuilt queue,
+  // depending on parameters and availability
   val idString = gen.getWidth().toString + "x" + entries.toString
   val blackBoxSet = Set("32x256", "32x512", "64x256", "64x512")
-  val enableBlackBox = isVerilog()
+  // generate prebuilt queues only when generating Verilog for UInt queues
+  val enableBlackBox = isVerilog() && (gen.getClass().getSimpleName() == "UInt")
 
   if(blackBoxSet(idString) && enableBlackBox) {
     val bbm = Module(new BlackBox() {
       val io = new QueueIO(gen, entries)
-      // TODO rename signals to match Xilinx template
-      moduleName = "CustomQueue"+idString
+      moduleName = "WrapperCustomQueue"+idString
+      // add clock and reset
+      this.addClock(Driver.implicitClock)
+      this.addResetPin(Driver.implicitReset)
     }).io
     bbm <> io
   } else {
