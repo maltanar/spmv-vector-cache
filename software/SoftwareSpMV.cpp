@@ -18,7 +18,7 @@ SoftwareSpMV::SoftwareSpMV(SparseMatrix * A, SpMVData *x, SpMVData *y) :
 		// allocate new all-ones input vector
 		m_x = new SpMVData[A->getCols()];
 		for (SpMVIndex i = 0; i < A->getCols(); i++) {
-			m_x[i] = 1.0f;
+			m_x[i] = (SpMVData) 1;
 		}
 	}
 
@@ -27,7 +27,7 @@ SoftwareSpMV::SoftwareSpMV(SparseMatrix * A, SpMVData *x, SpMVData *y) :
 		// allocate new all-zeroes result vector
 		m_y = new SpMVData[A->getRows()];
 		for (SpMVIndex i = 0; i < A->getRows(); i++) {
-			m_y[i] = 0.0f;
+			m_y[i] = (SpMVData) 0;
 		}
 	}
 
