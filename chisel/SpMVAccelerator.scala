@@ -10,12 +10,17 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
 
   // plug unused register file elems / set defaults
   plugRegOuts()
+  // types for SpMV channels, handy for instantiating FIFOs etc.
+  val tColPtr = UInt(width = p.ptrWidth)
+  val tRowInd = UInt(width = p.ptrWidth)
+  val tNZData = UInt(width = p.opWidth)
+  val tInpVec = UInt(width = p.opWidth)
 
   val in = new Bundle {
     // control inputs
-    val ctlFrontend = UInt(width = p.csrDataWidth)
-    val ctlBackend = UInt(width = p.csrDataWidth)
-    // val resetAll = Bool()
+    val startInit = Bool()
+    val startRegular = Bool()
+    val startWrite = Bool()
     // value inputs
     val numRows = UInt(width = p.csrDataWidth)
     val numCols = UInt(width = p.csrDataWidth)
@@ -32,9 +37,9 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
   }
 
   val out = new Bundle {
-    val statFrontend = UInt(width = p.csrDataWidth)
     val statBackend = UInt(width = p.csrDataWidth)
-    // TODO profiling outputs, other outputs
+    val statFrontend = UInt(width = p.csrDataWidth)
+    // TODO profiling outputs & other outputs
   }
   override lazy val regMap = manageRegIO(in, out)
 
@@ -43,15 +48,48 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
   // use partial interface fulfilment to connect backend interfaces
   // produces warnings, but should work fine
   backend <> in
+  // memory ports
   backend <> io
-  backend.startRegular := (in.ctlBackend(1, 0) === UInt(1))
-  backend.startWrite := (in.ctlBackend(1, 0) === UInt(2))
   val hasDecErr = (backend.decodeErrors != UInt(0))
-  out.statBackend := Cat(List(hasDecErr, backend.doneWrite, backend.doneRegular))
-  // TODO wire-up backend FIFO levels
+  val statBackendL = List(hasDecErr, backend.doneWrite, backend.doneRegular)
+  out.statBackend := Cat(statBackendL)
 
-  // TODO instantiate frontend and wire-up
+  // instantiate frontend
   val frontend = Module(new SpMVFrontend(p)).io
-  // TODO connect via FIFOs, connect count outputs to backend
-  // TODO connect control/status signals
+  frontend <> in
+  // TODO frontend stats
+  val statFrontendL = List(frontend.doneInit, frontend.doneWrite, frontend.doneRegular)
+  out.statFrontend := Cat(statFrontendL)
+
+  // instantiate FIFOs for backend-frontend communication
+  val colPtrFIFO = Module(new CustomQueue(tColPtr, p.colPtrFIFODepth)).io
+  colPtrFIFO.enq <> backend.colPtrOut
+  colPtrFIFO.deq <> frontend.colPtrIn
+  val rowIndFIFO = Module(new CustomQueue(tRowInd, p.rowIndFIFODepth)).io
+  rowIndFIFO.enq <> backend.rowIndOut
+  rowIndFIFO.deq <> frontend.rowIndIn
+  val nzDataFIFO = Module(new CustomQueue(tNZData, p.nzDataFIFODepth)).io
+  nzDataFIFO.enq <> backend.nzDataOut
+  nzDataFIFO.deq <> frontend.nzDataIn
+  val inpVecFIFO = Module(new CustomQueue(tInpVec, p.inpVecFIFODepth)).io
+  inpVecFIFO.enq <> backend.inputVecOut
+  inpVecFIFO.deq <> frontend.inputVecIn
+
+  // output vector FIFO is optional
+  if(p.outVecFIFODepth == 0) {
+    backend.outputVecIn <> frontend.outputVecOut
+  } else {
+    val outVecFIFO = Module(new CustomQueue(tInpVec, p.outVecFIFODepth)).io
+    outVecFIFO.deq <> backend.outputVecIn
+    outVecFIFO.enq <> frontend.outputVecOut
+  }
+
+  // wire-up FIFO levels to backend monitoring inputs
+  // backend will throttle channels when FIFO level goes over threshold
+  backend.fbColPtr := colPtrFIFO.count
+  backend.fbRowInd := rowIndFIFO.count
+  backend.fbNZData := nzDataFIFO.count
+  backend.fbInputVec := inpVecFIFO.count
+
+  // TODO add status/profiling signals
 }
