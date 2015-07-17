@@ -113,6 +113,7 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   val rqWrite = Module(new WriteReqGen(pMem, idBase+4)).io
   rqWrite.ctrl.baseAddr := io.baseOutputVec
   rqWrite.ctrl.byteCount := alignToMemWidth(outputVecBytes)
+  rqWrite.ctrl.throttle := Bool(false)
   rqWrite.reqs <> io.memWrReq   // only write channel, no interleaver needed
   io.memWrDat <> io.outputVecIn // write data directly from frontend
   // use StreamReducer to count write responses
