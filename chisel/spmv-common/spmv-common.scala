@@ -43,7 +43,10 @@ class SpMVAccelWrapperParams() extends BaseWrapperParams() {
 
 object isVerilog {
   def apply(): Boolean = {
-    Driver.backend.getClass().getSimpleName() == "VerilogBackend"
+    if(Driver.backend != null) {
+      return (Driver.backend.getClass().getSimpleName() == "VerilogBackend")
+    }
+    else {return false}
   }
 }
 

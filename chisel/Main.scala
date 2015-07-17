@@ -7,6 +7,7 @@ import TidbitsSimUtils._
 object MainObj {
   val testOutputDir = "testOutput/"
   val verilogOutputDir = "verilogOutput/"
+  val driverOutputDir = "driverOutput/"
   def makeTestArgs(cmpName: String): Array[String] = {
     return Array( "--targetDir", testOutputDir+cmpName,
                   "--compile", "--test", "--genHarness")
@@ -20,7 +21,7 @@ object MainObj {
 
   def printUsageAndExit() {
     println("Usage: sbt \"run <op> <comp>\"")
-    println("where <op> = {inst | test}")
+    println("where <op> = {inst | test | driver}")
     println("<comp> = {" + instFxnMap.keys.reduce(_ +" | "+ _) + "}")
     System.exit(0)
   }
@@ -44,9 +45,17 @@ object MainObj {
       makeHarnessVerilog(cmpName, instFxn)
     } else if(op == "test") {
       makeHarnessTest(cmpName, harnessMemDepth, instFxn)
+    } else if(op == "driver") {
+      makeHarnessDriver(cmpName, instFxn)
     } else {
       printUsageAndExit()
     }
+  }
+
+  def makeHarnessDriver(cmpName: String, fxn: () => AXIWrappableAccel) {
+    val outDir = new java.io.File(driverOutputDir)
+    outDir.mkdir()
+    fxn().buildDriver(driverOutputDir)
   }
 
   def makeHarnessVerilog(cmpName: String, fxn: () => AXIWrappableAccel) {
