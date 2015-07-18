@@ -159,9 +159,9 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
       // TODO will only work if memory write width = vector width
       // should generate an array and write that instead
       for(j <- 0 until cols) {
-        t.writeMem(inpVecBase+j, gen(j))
+        t.writeMem(inpVecBase+j*dataBytes, gen(j))
       }
-      println("Initialized unit input vector")
+      println("Initialized input vector")
     }
 
     def cleanOutputVector() = {
@@ -191,7 +191,7 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
       t.expectReg("out_statFrontend", 0)
       t.expectReg("out_statBackend", 0)
       t.writeReg("in_startRegular", 1)
-      while(!doneRegular()) {}
+      while(!doneRegular()) {traceRegular()}
       t.writeReg("in_startRegular", 0)
       println("Finished regular SpMV operation @" + t.t.toString)
     }
@@ -209,15 +209,28 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
     def printOutVec() = {
       val rows = t.readReg("in_numRows").toInt
       val base = t.readReg("in_baseOutputVec")
-      for(i <- 0 until 16) {
+      for(i <- 0 until rows) {
         println("y["+i.toString+"] = " + t.readMem(base+i*dataBytes).toString)
       }
     }
 
+    def printWhenTransaction(name: String, decif: DecoupledIO[UInt]) = {
+      val v = t.peek(decif.valid)
+      val r = t.peek(decif.ready)
+      if(v == 1 && r == 1) {
+        println(name +" : " + t.peek(decif.bits).toString)
+      }
+    }
+
+    def traceRegular() = {
+      //printWhenTransaction("NZData", nzDataFIFO.deq)
+      printWhenTransaction("InpVec", inpVecFIFO.deq)
+    }
+
     t.isTrace = false
     setThresholds()
-    loadMatrix("circuit204")
-    makeInputVector(i => 1)
+    loadMatrix("i64-uint64")
+    makeInputVector(i => i)
     cleanOutputVector()
 
     spmvInit()
