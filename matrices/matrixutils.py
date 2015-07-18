@@ -30,11 +30,14 @@ def alignedIncrement(base, increment, align):
     res += align-rem
   return res
 
+def loadAndConvertMatrix(name, startAddr=dramBase):
+    A=loadMatrix(name)
+    return convertMatrix(A, name, startAddr)
+
 # read in a matrix, convert it to separate CSC SpMV data files + output
 # command info (for reading this from an SD card later)
-def convertMatrix(name,startAddr=dramBase):
+def convertMatrix(A, name, startAddr=dramBase):
   startingRow=0
-  A=loadMatrix(name)
   targetDir=outputBase + "/" + name
   if not os.path.exists(targetDir):
     os.makedirs(targetDir)
