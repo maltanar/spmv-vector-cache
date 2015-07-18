@@ -33,7 +33,7 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   lazy val rawLatency = adder.latency + p.ocmReadLatency + 1
 
   // TODO expose hazard count to parent
-  val guard = Module(new HazardGuard(p.opWidth, p.idWidth, rawLatency)).io
+  val guard = Module(new HazardGuard(p.opWidth, p.ptrWidth, rawLatency)).io
   guard.streamIn <> io.operands
   io.hazardStalls := guard.hazardStalls
 
