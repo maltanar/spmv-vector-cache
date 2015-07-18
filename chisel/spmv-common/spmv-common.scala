@@ -89,3 +89,12 @@ class CustomQueue[T <: Data](gen: T, entries: Int) extends Module {
     q <> io
   }
 }
+
+object alignedIncrement {
+  def apply(base: Int, increment: Int, align: Int):Int = {
+    var res: Int = base+increment
+    val rem = res % align
+    if (rem != 0) { res += align-rem}
+    return res
+  }
+}

@@ -121,12 +121,6 @@ class TestSpMVBackend() extends AXIWrappableAccel(TestSpMVBackend.p) {
   // test
   override def defaultTest(t: WrappableAccelTester): Boolean = {
     super.defaultTest(t)
-    def alignedIncrement(base: Int, increment: Int, align: Int):Int = {
-      var res: Int = base+increment
-      val rem = res % align
-      if (rem != 0) { res += align-rem}
-      return res
-    }
     // ================================================================
     // initialize test values
     val numRows = 64
