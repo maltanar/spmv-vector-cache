@@ -60,7 +60,8 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
   out.statBackend := Cat(statBackendL)
 
   // instantiate frontend
-  val frontend = Module(new SpMVFrontend(p)).io
+  val frontendM = Module(new SpMVFrontend(p))
+  val frontend = frontendM.io
   frontend <> in
   // TODO frontend stats
   val statFrontendL = List(frontend.doneInit, frontend.doneWrite, frontend.doneRegular)
@@ -222,15 +223,30 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
       }
     }
 
+    def printWhenTransactionAggr[T <: Aggregate](name: String, decif: DecoupledIO[T]) = {
+      val v = t.peek(decif.valid)
+      val r = t.peek(decif.ready)
+      if(v == 1 && r == 1) {
+        println(name + ":")
+        t.isTrace=true
+        t.peek(decif.bits)
+        t.isTrace=false
+      }
+    }
+
     def traceRegular() = {
+      // uncomment to monitor FIFO data flows during regular exec
+      //printWhenTransaction("ColPtr", colPtrFIFO.deq)
+      //printWhenTransaction("RowInd", rowIndFIFO.deq)
       //printWhenTransaction("NZData", nzDataFIFO.deq)
-      printWhenTransaction("InpVec", inpVecFIFO.deq)
+      //printWhenTransaction("InpVec", inpVecFIFO.deq)
+      //printWhenTransactionAggr("ReducerOperands", frontendM.reducer.operands)
     }
 
     t.isTrace = false
     setThresholds()
-    loadMatrix("i64-uint64")
-    makeInputVector(i => i)
+    loadMatrix("circuit204-uint64")
+    makeInputVector(i => 1)
     cleanOutputVector()
 
     spmvInit()
