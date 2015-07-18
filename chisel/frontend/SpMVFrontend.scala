@@ -89,8 +89,8 @@ class SpMVFrontend(val p: SpMVAccelWrapperParams) extends Module {
   // connect OCMC dump port to result vec. output
   io.outputVecOut <> reducer.mcif.dumpPort
   // init and write done signals driven directly by the OCMC
-  io.doneInit := reducer.mcif.done
-  io.doneWrite := reducer.mcif.done
+  io.doneInit := reducer.mcif.done & io.startInit
+  io.doneWrite := reducer.mcif.done & io.startWrite
   io.doneRegular := (reducer.opCount === io.numNZ)
 
   // TODO emit statistics (hazards, etc)
