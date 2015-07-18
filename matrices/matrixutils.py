@@ -2,6 +2,7 @@
 
 import io, numpy, scipy, struct, os
 from scipy import io as ios
+from copy import deepcopy
 
 dramBase=0x8000100
 
@@ -10,6 +11,14 @@ localRoot="/home/maltanar/sandbox/spmv-vector-cache/matrices/mtx"
 # converted matrices will be outputted here
 outputBase="/home/maltanar/sandbox/spmv-vector-cache/matrices"
 
+# example of converting data indices to another type (uint64 in this case)
+def toUInt64Matrix(A):
+    Ap = deepcopy(A)
+    Ap.data = numpy.array(map(lambda x: np.uint64(1), A.data))
+    return Ap
+
+def makeUnitVector(A):
+    return numpy.array([1 for i in range(A.shape[1])])
 
 # load matrix from local file system (Matrix Market format file must exist
 # under localRoot)
