@@ -4,6 +4,11 @@ import Chisel._
 import TidbitsDMA._
 import TidbitsAXI._
 import TidbitsStreams._
+import TidbitsSimUtils._
+import java.nio.file.{Files, Paths}
+import java.nio.ByteBuffer
+import java.io.{FileInputStream, DataInputStream}
+
 
 class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
   override lazy val accelVersion: String = "alpha"
@@ -92,4 +97,136 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
   backend.fbInputVec := inpVecFIFO.count
 
   // TODO add status/profiling signals
+
+  // test
+  override def defaultTest(t: WrappableAccelTester): Boolean = {
+    t.reset(10)
+    super.defaultTest(t)
+    val ptrBytes = p.ptrWidth/8
+    val dataBytes = p.opWidth/8
+    def setThresholds() = {
+      t.writeReg("in_thresColPtr", p.colPtrFIFODepth/2)
+      t.writeReg("in_thresRowInd", p.rowIndFIFODepth/2)
+      t.writeReg("in_thresNZData", p.nzDataFIFODepth/2)
+      t.writeReg("in_thresInputVec", p.inpVecFIFODepth/2)
+    }
+
+    def loadMatrix(name: String): Int = {
+      val baseDir = "/home/maltanar/sandbox/spmv-vector-cache/matrices/"
+      val matrixDir = baseDir + name + "/"
+      // load the metadata file
+      val metaFile = matrixDir+name+"-meta.bin"
+      var m = ByteBuffer.wrap(Files.readAllBytes(Paths.get(metaFile)))
+      m.order(java.nio.ByteOrder.nativeOrder)
+      // read matrix dimensions from metadata and set up in regs
+      val rows = m.getInt()
+      val cols = m.getInt()
+      val nnz = m.getInt()
+      t.writeReg("in_numRows", rows)
+      t.writeReg("in_numCols", cols)
+      t.writeReg("in_numNZ", nnz)
+      // load col ptr data
+      var baseAddr = 0
+      t.writeReg("in_baseColPtr", baseAddr)
+      t.fileToMem(matrixDir+name+"-indptr.bin", baseAddr)
+      baseAddr = alignedIncrement(baseAddr, (cols+1)*ptrBytes, 64)
+      // load row ind data
+      t.writeReg("in_baseRowInd", baseAddr)
+      t.fileToMem(matrixDir+name+"-inds.bin", baseAddr)
+      baseAddr = alignedIncrement(baseAddr, nnz*ptrBytes, 64)
+      // load nonzero data
+      t.writeReg("in_baseNZData", baseAddr)
+      t.fileToMem(matrixDir+name+"-data.bin", baseAddr)
+      baseAddr = alignedIncrement(baseAddr, nnz*dataBytes, 64)
+      // set up pointers for input&output vectors
+      // will be used by vector cons. functions later
+      t.writeReg("in_baseInputVec", baseAddr)
+      baseAddr = alignedIncrement(baseAddr, cols*dataBytes, 64)
+      t.writeReg("in_baseOutputVec", baseAddr)
+
+      println("Loaded matrix " + name)
+      return baseAddr
+    }
+
+    def makeInputVector(gen: Int => Int) = {
+      val inpVecBase = t.readReg("in_baseInputVec")
+      val cols = t.readReg("in_numCols").toInt
+
+      if(dataBytes != 8) {
+        println("FIXME makeInputVector with dataBytes != 8")
+        System.exit(-1)
+      }
+      // TODO will only work if memory write width = vector width
+      // should generate an array and write that instead
+      for(j <- 0 until cols) {
+        t.writeMem(inpVecBase+j, gen(j))
+      }
+      println("Initialized unit input vector")
+    }
+
+    def cleanOutputVector() = {
+      val rows = t.readReg("in_numRows").toInt
+      val base = t.readReg("in_baseOutputVec")
+      for(i <- 0 until rows) {
+        t.writeMem(base+i*dataBytes, 0)
+      }
+    }
+
+    def doneInit(): Boolean = {t.readReg("out_statFrontend") == 4}
+    def doneWrite(): Boolean = {t.readReg("out_statBackend") == 2}
+    def doneRegular(): Boolean = {t.readReg("out_statFrontend") == 1}
+
+    def spmvInit() = {
+      println("Starting SpMV init operation @" + t.t.toString)
+      t.expectReg("out_statFrontend", 0)
+      t.expectReg("out_statBackend", 0)
+      t.writeReg("in_startInit", 1)
+      while(!doneInit()) {}
+      t.writeReg("in_startInit", 0)
+      println("Finished SpMV init operation @" + t.t.toString)
+    }
+
+    def spmvRegular() = {
+      println("Starting regular SpMV operation @" + t.t.toString)
+      t.expectReg("out_statFrontend", 0)
+      t.expectReg("out_statBackend", 0)
+      t.writeReg("in_startRegular", 1)
+      while(!doneRegular()) {}
+      t.writeReg("in_startRegular", 0)
+      println("Finished regular SpMV operation @" + t.t.toString)
+    }
+
+    def spmvWrite() = {
+      println("Starting SpMV write operation @" + t.t.toString)
+      t.expectReg("out_statFrontend", 0)
+      t.expectReg("out_statBackend", 0)
+      t.writeReg("in_startWrite", 1)
+      while(!doneWrite()) {}
+      t.writeReg("in_startWrite", 0)
+      println("Finished SpMV write operation @" + t.t.toString)
+    }
+
+    def printOutVec() = {
+      val rows = t.readReg("in_numRows").toInt
+      val base = t.readReg("in_baseOutputVec")
+      for(i <- 0 until 16) {
+        println("y["+i.toString+"] = " + t.readMem(base+i*dataBytes).toString)
+      }
+    }
+
+    t.isTrace = false
+    setThresholds()
+    loadMatrix("circuit204")
+    makeInputVector(i => 1)
+    cleanOutputVector()
+
+    spmvInit()
+    spmvRegular()
+    spmvWrite()
+    printOutVec()
+
+    t.isTrace = true
+
+    return true
+  }
 }
