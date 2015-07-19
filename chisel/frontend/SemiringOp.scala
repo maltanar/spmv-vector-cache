@@ -91,25 +91,6 @@ extends SemiringOp(w) {
   io.out <> delayPipe(n-1).out
 }
 
-// simulation-only operators for double-precision floating point
-class SimDPAdd() extends Module {
-  val io = new Bundle {
-    val inA = Dbl(INPUT)
-    val inB = Dbl(INPUT)
-    val out = Dbl(OUTPUT)
-  }
-  io.out := io.inA + io.inB
-}
-
-class SimDPMul() extends Module {
-  val io = new Bundle {
-    val inA = Dbl(INPUT)
-    val inB = Dbl(INPUT)
-    val out = Dbl(OUTPUT)
-  }
-  io.out := io.inA * io.inB
-}
-
 class DPAdder(stages: Int) extends SemiringOp(64) {
   val enableBlackBox = isVerilog()
 
