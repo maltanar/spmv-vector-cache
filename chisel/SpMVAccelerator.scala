@@ -261,6 +261,7 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
     setThresholds()
     loadMatrix(matrixName)
     makeInputVector(i => Dbl(1.0).litValue())
+    //makeInputVector(i => 1)
     cleanOutputVector()
 
     spmvInit()

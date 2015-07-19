@@ -110,35 +110,37 @@ class SimDPMul() extends Module {
   io.out := io.inA * io.inB
 }
 
-class DPAdder() extends SemiringOp(64) {
+class DPAdder(stages: Int) extends SemiringOp(64) {
   val enableBlackBox = isVerilog()
 
   if(enableBlackBox) {
     // TODO generate blackbox for dbl-precision floating pt add
   } else {
-    val op = Module(new SimDPAdd()).io
-    op.inA := chiselCast(io.in.bits.first)(Dbl())
-    op.inB := chiselCast(io.in.bits.second)(Dbl())
-
-    io.out.bits := op.out
-    io.out.valid := io.in.valid
-    io.in.ready := io.out.ready
+    val fxn : (UInt,UInt)=>UInt = {
+      // interpret input as doubles, add, then interpret as UInt
+      (a,b) => chiselCast(
+                          chiselCast(a)(Dbl()) + chiselCast(b)(Dbl())
+                         )(UInt())
+    }
+    val op = Module(new StagedUIntOp(64, stages, fxn)).io
+    io <> op
   }
 }
 
 
-class DPMultiplier() extends SemiringOp(64) {
+class DPMultiplier(stages: Int) extends SemiringOp(64) {
   val enableBlackBox = isVerilog()
 
   if(enableBlackBox) {
     // TODO generate blackbox for dbl-precision floating pt mul
   } else {
-    val op = Module(new SimDPMul()).io
-    op.inA := chiselCast(io.in.bits.first)(Dbl())
-    op.inB := chiselCast(io.in.bits.second)(Dbl())
-
-    io.out.bits := op.out
-    io.out.valid := io.in.valid
-    io.in.ready := io.out.ready
+    val fxn : (UInt,UInt)=>UInt = {
+      // interpret input as doubles, mul, then interpret as UInt
+      (a,b) => chiselCast(
+                          chiselCast(a)(Dbl()) * chiselCast(b)(Dbl())
+                         )(UInt())
+    }
+    val op = Module(new StagedUIntOp(64, stages, fxn)).io
+    io <> op
   }
 }

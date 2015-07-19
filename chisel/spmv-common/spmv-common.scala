@@ -29,8 +29,8 @@ class SpMVAccelWrapperParams() extends BaseWrapperParams() {
   // semiring op definitions
   //val makeAdd: () => SemiringOp = {() => new StagedUIntOp(opWidth, 1, (a,b)=>a+b)}
   //val makeMul: () => SemiringOp = {() => new StagedUIntOp(opWidth, 1, (a,b)=>a*b)}
-  val makeAdd: () => SemiringOp = {() => new DPAdder()}
-  val makeMul: () => SemiringOp = {() => new DPMultiplier()}
+  val makeAdd: () => SemiringOp = {() => new DPAdder(1)}
+  val makeMul: () => SemiringOp = {() => new DPMultiplier(1)}
   // OCM parameters -- TODO separate into own trait/class?
   // number of contexts in context storage
   val ocmDepth = 1024
