@@ -10,6 +10,7 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
                                 p.ocmReadLatency)
   val opType = UInt(width=p.opWidth)
   val idType = UInt(width=p.ptrWidth)
+  val opWidthIdType = new OperandWithID(p.opWidth, p.ptrWidth)
   val syncOpType = new SemiringOperands(p.opWidth)
   val io = new Bundle {
     val enable = Bool(INPUT)
@@ -46,15 +47,17 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   // TODO parametrize depths
   val opQ = Module(new Queue(opType, 4)).io
   val idQ = Module(new Queue(idType, 4)).io
-  opQ.enq.bits := hazardFreeOps.bits.data
-  idQ.enq.bits := hazardFreeOps.bits.id
-  loadPort.req.addr := hazardFreeOps.bits.id
+  val forkOp = {x: OperandWithID => x.data}
+  val forkId = {x: OperandWithID => x.id}
+  val fork = Module(new StreamFork(opWidthIdType, opType, idType,
+                      forkOp, forkId)).io
+  // fork op-id stream into op and id streams
+  opQ.enq <> fork.outA
+  idQ.enq <> fork.outB
+  fork.in <> hazardFreeOps
   // shift register to determine load completion
   val loadValid = ShiftRegister(hazardFreeOps.valid, p.ocmReadLatency)
-  opQ.enq.valid := hazardFreeOps.valid & idQ.enq.ready
-  idQ.enq.valid := hazardFreeOps.valid & opQ.enq.ready
-  hazardFreeOps.ready := opQ.enq.ready & idQ.enq.ready
-
+  loadPort.req.addr := hazardFreeOps.bits.id
 
   // join operans for addition
   val fxn = {(a: UInt, b: UInt) => SemiringOperands(p.opWidth, a, b)}
