@@ -91,39 +91,6 @@ extends SemiringOp(w) {
   io.out <> delayPipe(n-1).out
 }
 
-// 1-stage variants of UInt add and multiply
-class OpAddSingleStage(w: Int) extends SemiringOp(w) {
-  override lazy val latency: Int = 1
-  val regValid = Reg(init = Bool(false))
-  val regData = Reg(init = UInt(0, w))
-  val allowNewData = (!regValid || io.out.ready)
-
-  io.out.bits := regData
-  io.out.valid := regValid
-  io.in.ready := allowNewData
-
-  when(allowNewData) {
-    regData := io.in.bits.first + io.in.bits.second
-    regValid := io.in.valid
-  }
-}
-
-class OpMulSingleStage(w: Int) extends SemiringOp(w) {
-  override lazy val latency: Int = 1
-  val regValid = Reg(init = Bool(false))
-  val regData = Reg(init = UInt(0, w))
-  val allowNewData = (!regValid || io.out.ready)
-
-  io.out.bits := regData
-  io.out.valid := regValid
-  io.in.ready := allowNewData
-
-  when(allowNewData) {
-    regData := io.in.bits.first * io.in.bits.second
-    regValid := io.in.valid
-  }
-}
-
 // simulation-only operators for double-precision floating point
 class SimDPAdd() extends Module {
   val io = new Bundle {
