@@ -21,4 +21,4 @@ project/plugins/project/
 testOutput/
 verilogOutput/
 driverOutput/
-
+/*.bin

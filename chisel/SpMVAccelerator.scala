@@ -149,7 +149,7 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
       return baseAddr
     }
 
-    def makeInputVector(gen: Int => Int) = {
+    def makeInputVector(gen: Int => BigInt) = {
       val inpVecBase = t.readReg("in_baseInputVec")
       val cols = t.readReg("in_numCols").toInt
 
@@ -211,8 +211,20 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
       val rows = t.readReg("in_numRows").toInt
       val base = t.readReg("in_baseOutputVec")
       for(i <- 0 until rows) {
-        println("y["+i.toString+"] = " + t.readMem(base+i*dataBytes).toString)
+        val v: BigInt = t.readMem(base+i*dataBytes)
+        println("y["+i.toString+"] = " + v.toString(16))
       }
+    }
+
+    def saveOutVec(fileName: String) = {
+      val rows = t.readReg("in_numRows").toInt
+      val base = t.readReg("in_baseOutputVec")
+      if(dataBytes != 8) {
+        println("FIXME saveOutVec with dataBytes != 8")
+        System.exit(-1)
+      }
+      t.memToFile(fileName, base, rows)
+      println("Output vector written to "+fileName)
     }
 
     def printWhenTransaction(name: String, decif: DecoupledIO[UInt]) = {
@@ -243,16 +255,19 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
       //printWhenTransactionAggr("ReducerOperands", frontendM.reducer.operands)
     }
 
+    val matrixName = "circuit204"
+
     t.isTrace = false
     setThresholds()
-    loadMatrix("circuit204-uint64")
-    makeInputVector(i => 1)
+    loadMatrix(matrixName)
+    makeInputVector(i => Dbl(1.0).litValue())
     cleanOutputVector()
 
     spmvInit()
     spmvRegular()
     spmvWrite()
-    printOutVec()
+    //printOutVec()
+    saveOutVec("out-"+matrixName+".bin")
 
     t.isTrace = true
 

@@ -43,6 +43,8 @@ class OpMulCombinatorial(w: Int) extends SemiringOp(w) {
   io.in.ready := io.out.ready
 }
 
+// TODO add systolic reg to parametrize op stages flexibly
+
 // 1-stage variants of UInt add and multiply
 class OpAddSingleStage(w: Int) extends SemiringOp(w) {
   override lazy val latency: Int = 1
@@ -73,5 +75,57 @@ class OpMulSingleStage(w: Int) extends SemiringOp(w) {
   when(allowNewData) {
     regData := io.in.bits.first * io.in.bits.second
     regValid := io.in.valid
+  }
+}
+
+// simulation-only operators for double-precision floating point
+class SimDPAdd() extends Module {
+  val io = new Bundle {
+    val inA = Dbl(INPUT)
+    val inB = Dbl(INPUT)
+    val out = Dbl(OUTPUT)
+  }
+  io.out := io.inA + io.inB
+}
+
+class SimDPMul() extends Module {
+  val io = new Bundle {
+    val inA = Dbl(INPUT)
+    val inB = Dbl(INPUT)
+    val out = Dbl(OUTPUT)
+  }
+  io.out := io.inA * io.inB
+}
+
+class DPAdder() extends SemiringOp(64) {
+  val enableBlackBox = isVerilog()
+
+  if(enableBlackBox) {
+    // TODO generate blackbox for dbl-precision floating pt add
+  } else {
+    val op = Module(new SimDPAdd()).io
+    op.inA := chiselCast(io.in.bits.first)(Dbl())
+    op.inB := chiselCast(io.in.bits.second)(Dbl())
+
+    io.out.bits := op.out
+    io.out.valid := io.in.valid
+    io.in.ready := io.out.ready
+  }
+}
+
+
+class DPMultiplier() extends SemiringOp(64) {
+  val enableBlackBox = isVerilog()
+
+  if(enableBlackBox) {
+    // TODO generate blackbox for dbl-precision floating pt mul
+  } else {
+    val op = Module(new SimDPMul()).io
+    op.inA := chiselCast(io.in.bits.first)(Dbl())
+    op.inB := chiselCast(io.in.bits.second)(Dbl())
+
+    io.out.bits := op.out
+    io.out.valid := io.in.valid
+    io.in.ready := io.out.ready
   }
 }
