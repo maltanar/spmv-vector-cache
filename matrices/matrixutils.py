@@ -20,6 +20,13 @@ def toUInt64Matrix(A):
 def makeUnitVector(A):
     return numpy.array([1 for i in range(A.shape[1])])
 
+def makeGoldenResult(A, name):
+    x=makeUnitVector(A)
+    y=A*x
+    f=io.open(outputBase+"/"+name+"/golden.bin", "wb")
+    f.write(y)
+    f.close()
+
 # load matrix from local file system (Matrix Market format file must exist
 # under localRoot)
 def loadMatrix(name):
