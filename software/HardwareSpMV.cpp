@@ -23,6 +23,10 @@ HardwareSpMV::HardwareSpMV(unsigned int aBase, unsigned int aReset,
 	m_accelBase = (volatile unsigned int *) aBase;
 	m_resetBase = (volatile unsigned int *) aReset;
 	m_acc = new SpMVAcceleratorDriver(m_accelBase);
+
+	// buffer-all: ensure all rows will fit within OCM
+	cout << "# OCM words: " << m_acc->ocmWords() << endl;
+	assert(A->getRows() <= m_acc->ocmWords());
 }
 
 HardwareSpMV::~HardwareSpMV() {
