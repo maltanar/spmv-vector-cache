@@ -2,7 +2,7 @@
 #define SPARSEMATRIX_H_
 
 typedef unsigned int SpMVIndex;
-typedef unsigned long long SpMVData;
+typedef double SpMVData;
 
 class SparseMatrix {
 public:

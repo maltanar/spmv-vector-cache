@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <iostream>
+#include <string.h>
 #include "xil_cache.h"
 #include "SparseMatrix.h"
 #include "SoftwareSpMV.h"
@@ -54,7 +55,10 @@ int main(int argc, char *argv[]) {
   spmv.exec();
   check.exec();
 
-  for(SpMVIndex i = 0; i < 10; i++) { cout << i << hex << " = " << y[i] << " vs " << check.getY()[i] << dec << endl; }
+  SpMVData * goldenY = check.getY();
+  int res = memcmp(goldenY, y, sizeof(SpMVData)*A->getRows());
+
+  cout << "Memcmp result = " << res << endl;
 
   cout << "Exiting..." << endl;
 
