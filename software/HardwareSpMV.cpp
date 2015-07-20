@@ -1,5 +1,7 @@
 #include "HardwareSpMV.h"
 #include <assert.h>
+#include <iostream>
+using namespace std;
 
 #define isAligned(x) (assert((unsigned int)x % 64 == 0))
 
@@ -97,6 +99,12 @@ void HardwareSpMV::regular() {
 	while (!(readBackendStatus(backendMaskDoneRegular)
 				&& readFrontendStatus(frontendMaskDoneRegular)))
 			;
+
+	cout << "Hazard stalls: " << m_acc->hazardStalls() << endl;
+	cout << "Active cycles: " << m_acc->bwMon_activeCycles() << endl;
+	cout << "Total cycles: " << m_acc->bwMon_totalCycles() << endl;
+	float act = (float)(m_acc->bwMon_activeCycles()) / (float)(m_acc->bwMon_totalCycles());
+	cout << "Active/Total = " << act << endl;
 
 	m_acc->startRegular(0);
 }
