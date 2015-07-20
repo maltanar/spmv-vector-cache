@@ -92,10 +92,19 @@ extends SemiringOp(w) {
 }
 
 class DPAdder(stages: Int) extends SemiringOp(64) {
+  override lazy val latency: Int = stages
   val enableBlackBox = isVerilog()
 
   if(enableBlackBox) {
-    // TODO generate blackbox for dbl-precision floating pt add
+    // generate blackbox for dbl-precision floating pt add
+    val op = Module(new DPBlackBox("WrapperXilinxDPAdd"+stages.toString+"Stage")).io
+    op.inA.bits := io.in.bits.first
+    op.inB.bits := io.in.bits.second
+    op.inA.valid := io.in.valid
+    op.inB.valid := io.in.valid
+    io.in.ready := op.inA.ready & op.inB.ready
+    op.out <> io.out
+
   } else {
     val fxn : (UInt,UInt)=>UInt = {
       // interpret input as doubles, add, then interpret as UInt
@@ -110,10 +119,18 @@ class DPAdder(stages: Int) extends SemiringOp(64) {
 
 
 class DPMultiplier(stages: Int) extends SemiringOp(64) {
+  override lazy val latency: Int = stages
   val enableBlackBox = isVerilog()
 
   if(enableBlackBox) {
     // TODO generate blackbox for dbl-precision floating pt mul
+    val op = Module(new DPBlackBox("WrapperXilinxDPMul"+stages.toString+"Stage")).io
+    op.inA.bits := io.in.bits.first
+    op.inB.bits := io.in.bits.second
+    op.inA.valid := io.in.valid
+    op.inB.valid := io.in.valid
+    io.in.ready := op.inA.ready & op.inB.ready
+    op.out <> io.out
   } else {
     val fxn : (UInt,UInt)=>UInt = {
       // interpret input as doubles, mul, then interpret as UInt
@@ -124,4 +141,14 @@ class DPMultiplier(stages: Int) extends SemiringOp(64) {
     val op = Module(new StagedUIntOp(64, stages, fxn)).io
     io <> op
   }
+}
+
+class DPBlackBox(name: String) extends BlackBox {
+  moduleName = name
+  val io = new Bundle {
+    val inA = Decoupled(UInt(width = 64)).flip
+    val inB = Decoupled(UInt(width = 64)).flip
+    val out = Decoupled(UInt(width = 64))
+  }
+  this.addClock(Driver.implicitClock)
 }
