@@ -22,6 +22,7 @@ class SpMVFrontend(val p: SpMVAccelWrapperParams) extends Module {
     val doneRegular = Bool(OUTPUT)
     val doneWrite = Bool(OUTPUT)
     // TODO debug+profiling outputs
+    val hazardStalls = UInt(OUTPUT, width = 32)
     // value inputs
     val numNZ = UInt(INPUT, width = 32)
     val numRows = UInt(INPUT, width = 32)
@@ -94,5 +95,5 @@ class SpMVFrontend(val p: SpMVAccelWrapperParams) extends Module {
   io.doneRegular := (reducer.opCount === io.numNZ)
 
   // TODO emit statistics (hazards, etc)
-  // TODO finish wire-up + test
+  io.hazardStalls := reducer.hazardStalls
 }
