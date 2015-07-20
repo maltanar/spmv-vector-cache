@@ -11,7 +11,7 @@ import java.io.{FileInputStream, DataInputStream}
 
 
 class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
-  override lazy val accelVersion: String = "alpha-1"
+  override lazy val accelVersion: String = "alpha-2"
 
   // plug unused register file elems / set defaults
   plugRegOuts()
@@ -46,6 +46,7 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
     val statFrontend = UInt(width = p.csrDataWidth)
     // TODO profiling outputs & other outputs
     val hazardStalls = UInt(width = p.csrDataWidth)
+    val bwMon = new StreamMonitorOutIF()
   }
   override lazy val regMap = manageRegIO(in, out)
 
@@ -99,7 +100,7 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
   backend.fbNZData := nzDataFIFO.count
   backend.fbInputVec := inpVecFIFO.count
 
-  // TODO add status/profiling signals
+  out.bwMon := StreamMonitor(io.memRdRsp, in.startRegular & !frontend.doneRegular)
 
   // test
   override def defaultTest(t: WrappableAccelTester): Boolean = {
