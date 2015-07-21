@@ -11,7 +11,7 @@ import java.io.{FileInputStream, DataInputStream}
 
 
 class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
-  override lazy val accelVersion: String = "alpha-3"
+  override lazy val accelVersion: String = "alpha-4"
 
   // plug unused register file elems / set defaults
   plugRegOuts()
@@ -48,6 +48,9 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
     val hazardStalls = UInt(width = p.csrDataWidth)
     val bwMon = new StreamMonitorOutIF()
     val ocmWords = UInt(width = p.csrDataWidth)
+    val fifoCountsCPRI = UInt(width = p.csrDataWidth)
+    val fifoCountsNZIV = UInt(width = p.csrDataWidth)
+
   }
   override lazy val regMap = manageRegIO(in, out)
 
@@ -102,6 +105,11 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
   backend.fbRowInd := rowIndFIFO.count
   backend.fbNZData := nzDataFIFO.count
   backend.fbInputVec := inpVecFIFO.count
+
+  def pad16(x: UInt): UInt = { Cat(Fill(16-x.getWidth(), Bits("b0")) , x) }
+
+  out.fifoCountsCPRI := Cat(pad16(colPtrFIFO.count), pad16(rowIndFIFO.count))
+  out.fifoCountsNZIV := Cat(pad16(nzDataFIFO.count), pad16(inpVecFIFO.count))
 
   out.bwMon := StreamMonitor(io.memRdRsp, in.startRegular & !frontend.doneRegular)
 
