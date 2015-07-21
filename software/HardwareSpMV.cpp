@@ -112,3 +112,22 @@ void HardwareSpMV::regular() {
 
 	m_acc->startRegular(0);
 }
+
+unsigned short HardwareSpMV::getFIFOLevel(SpMVFIFONum num) {
+	switch(num) {
+		case fifoColPtr:
+			return (m_acc->fifoCountsCPRI() & 0xffff0000) >> 16;
+		break;
+		case fifoRowInd:
+			return (m_acc->fifoCountsCPRI() & 0xffff);
+		break;
+		case fifoNZData:
+			return (m_acc->fifoCountsNZIV() & 0xffff0000) >> 16;
+		break;
+		case fifoInpVec:
+			return (m_acc->fifoCountsNZIV() & 0xffff);
+		break;
+		default:
+			return 0
+	}
+}

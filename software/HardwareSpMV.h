@@ -42,6 +42,16 @@ protected:
 	void regular();
 
 	// TODO add profiling support
+
+	// FIFO data counts, can be useful for debugging freezes
+	typedef enum {
+		fifoColPtr = 1,
+		fifoRowInd = 2,
+		fifoNZData = 3,
+		fifoInpVec = 4,
+		fifoOutVec = 5
+	} SpMVFIFONum;
+	unsigned short getFIFOLevel(SpMVFIFONum num);
 };
 
 #endif /* HARDWARESPMV_H_ */
