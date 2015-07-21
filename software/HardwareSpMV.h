@@ -11,6 +11,7 @@ public:
 	virtual ~HardwareSpMV();
 
 	virtual bool exec();
+	void printAllFIFOLevels();
 
 protected:
 	volatile unsigned int * m_accelBase;
@@ -51,7 +52,7 @@ protected:
 		fifoInpVec = 4,
 		fifoOutVec = 5
 	} SpMVFIFONum;
-	unsigned short getFIFOLevel(SpMVFIFONum num);
+	volatile unsigned short getFIFOLevel(SpMVFIFONum num);
 };
 
 #endif /* HARDWARESPMV_H_ */

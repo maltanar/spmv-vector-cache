@@ -101,33 +101,43 @@ void HardwareSpMV::regular() {
 
 	m_acc->startRegular(1);
 	while (!(readBackendStatus(backendMaskDoneRegular)
-				&& readFrontendStatus(frontendMaskDoneRegular)))
-			;
+			&& readFrontendStatus(frontendMaskDoneRegular)))
+		;
 
 	cout << "Hazard stalls: " << m_acc->hazardStalls() << endl;
 	cout << "Active cycles: " << m_acc->bwMon_activeCycles() << endl;
 	cout << "Total cycles: " << m_acc->bwMon_totalCycles() << endl;
-	float act = (float)(m_acc->bwMon_activeCycles()) / (float)(m_acc->bwMon_totalCycles());
+	float act = (float) (m_acc->bwMon_activeCycles())
+			/ (float) (m_acc->bwMon_totalCycles());
 	cout << "Active/Total = " << act << endl;
+	//printAllFIFOLevels();
 
 	m_acc->startRegular(0);
 }
 
-unsigned short HardwareSpMV::getFIFOLevel(SpMVFIFONum num) {
-	switch(num) {
-		case fifoColPtr:
-			return (m_acc->fifoCountsCPRI() & 0xffff0000) >> 16;
+volatile unsigned short HardwareSpMV::getFIFOLevel(SpMVFIFONum num) {
+	switch (num) {
+	case fifoColPtr:
+		return (m_acc->fifoCountsCPRI() & 0xffff0000) >> 16;
 		break;
-		case fifoRowInd:
-			return (m_acc->fifoCountsCPRI() & 0xffff);
+	case fifoRowInd:
+		return (m_acc->fifoCountsCPRI() & 0xffff);
 		break;
-		case fifoNZData:
-			return (m_acc->fifoCountsNZIV() & 0xffff0000) >> 16;
+	case fifoNZData:
+		return (m_acc->fifoCountsNZIV() & 0xffff0000) >> 16;
 		break;
-		case fifoInpVec:
-			return (m_acc->fifoCountsNZIV() & 0xffff);
+	case fifoInpVec:
+		return (m_acc->fifoCountsNZIV() & 0xffff);
 		break;
-		default:
-			return 0
+	default:
+		return 0;
 	}
+}
+
+void HardwareSpMV::printAllFIFOLevels() {
+	cout << "FIFO levels" << endl << "=================" << endl;
+	cout << "ColPtr: " << getFIFOLevel(fifoColPtr) << endl;
+	cout << "RowInd: " << getFIFOLevel(fifoRowInd) << endl;
+	cout << "NZData: " << getFIFOLevel(fifoNZData) << endl;
+	cout << "InpVec: " << getFIFOLevel(fifoInpVec) << endl;
 }
