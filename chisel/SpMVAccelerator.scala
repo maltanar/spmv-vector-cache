@@ -62,7 +62,7 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
   // produces warnings, but should work fine
   backend <> in
   // memory ports
-  backend <> io
+  backend <> io.mp(0)
   val hasDecErr = (backend.decodeErrors != UInt(0))
   val statBackendL = List(hasDecErr, backend.doneWrite, backend.doneRegular)
   out.statBackend := Cat(statBackendL)
@@ -111,7 +111,7 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
   out.fifoCountsCPRI := Cat(pad16(colPtrFIFO.count), pad16(rowIndFIFO.count))
   out.fifoCountsNZIV := Cat(pad16(nzDataFIFO.count), pad16(inpVecFIFO.count))
 
-  out.bwMon := StreamMonitor(io.memRdRsp, in.startRegular & !frontend.doneRegular)
+  out.bwMon := StreamMonitor(io.mp(0).memRdRsp, in.startRegular & !frontend.doneRegular)
 
   // test
   override def defaultTest(t: WrappableAccelTester): Boolean = {

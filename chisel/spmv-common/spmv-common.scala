@@ -9,7 +9,8 @@ class BaseWrapperParams() extends AXIAccelWrapperParams(
   csrDataWidth = 32,
   memDataWidth = 64,
   idWidth = 6,
-  numRegs = 32)
+  numRegs = 32,
+  numMemPorts = 1)
 
 class SpMVAccelWrapperParams() extends BaseWrapperParams() {
   // bitwidths for SpMV

@@ -12,8 +12,8 @@ object TestSpMVFrontend {
 
 class TestSpMVFrontend() extends AXIWrappableAccel(TestSpMVFrontend.p) {
   plugRegOuts()
-  plugMemReadPort()
-  plugMemWritePort()
+  plugMemReadPorts()
+  plugMemWritePorts()
 
   val opWidth = TestSpMVFrontend.p.opWidth
   val ptrWidth = TestSpMVFrontend.p.ptrWidth
@@ -181,7 +181,7 @@ class TestSpMVFrontend() extends AXIWrappableAccel(TestSpMVFrontend.p) {
     while(t.readReg("out_doneWrite") != 1) {}
     t.expectReg("out_redOutputVec", sumUpTo(numNZ))
     t.writeReg("in_startWrite", 0)
-    
+
     println("All tests finished")
     return true
   }

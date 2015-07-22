@@ -56,7 +56,7 @@ class TestSpMVBackend() extends AXIWrappableAccel(TestSpMVBackend.p) {
   // produces warnings, but should work fine
   backend <> in
   out <> backend
-  backend <> io
+  backend <> io.mp(0)
 
   // plug rate control I/Os for backend -- unused
   backend.thresColPtr := UInt(1)
@@ -116,7 +116,7 @@ class TestSpMVBackend() extends AXIWrappableAccel(TestSpMVBackend.p) {
 
   // stream monitors -- way at the end, so that the stream we want to monitor
   // has already been wired up (if this is a problem at all)
-  out.rdMon := StreamMonitor(io.memRdRsp, in.startRegular & !out.allMonsFinished)
+  out.rdMon := StreamMonitor(io.mp(0).memRdRsp, in.startRegular & !out.allMonsFinished)
 
   // test
   override def defaultTest(t: WrappableAccelTester): Boolean = {
