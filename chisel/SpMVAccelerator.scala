@@ -280,9 +280,11 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
 
     spmvInit()
     spmvRegular()
+    val hazardStalls = t.readReg("out_hazardStalls")
     spmvWrite()
     //printOutVec()
     saveOutVec("out-"+matrixName+".bin")
+    println(s"Hazard stalls: $hazardStalls")
 
     t.isTrace = true
 
