@@ -97,18 +97,23 @@ class SpMVFrontendBufferNone(val p: SpMVAccelWrapperParams) extends Module {
 
   val opBytes = UInt(p.opWidth/8)
   val reqType = new GenericMemoryRequest(p.toMRP())
-  def idToReq(i: UInt, wr: Boolean): GenericMemoryRequest = {
-    val req = new GenericMemoryRequest(p.toMRP())
+
+  def idsToReqs(ids: DecoupledIO[UInt], wr: Boolean): DecoupledIO[GenericMemoryRequest] = {
+    val reqs = Decoupled(new GenericMemoryRequest(p.toMRP())).asDirectionless
+    val req = reqs.bits
     req.channelID := UInt(0)  // TODO parametrize!
     req.isWrite := Bool(wr)
-    req.addr := io.baseOutputVec + i * opBytes
+    req.addr := io.baseOutputVec + ids.bits * opBytes
     req.numBytes := opBytes
     req.metaData := UInt(0)
-    return req
-  }
-  val makeRdRq = {x: UInt => idToReq(x, false)}
 
-  io.mp.memRdReq <> StreamFilter(forkSplit.outB, reqType, makeRdRq)
+    reqs.valid := ids.valid
+    ids.ready := reqs.ready
+
+    return reqs
+  }
+  // make read request stream from id stream
+  io.mp.memRdReq <> idsToReqs(forkSplit.outB, false)
 
   // TODO parametrize depths
   val opQ = Module(new Queue(opType, 4)).io
@@ -135,8 +140,8 @@ class SpMVFrontendBufferNone(val p: SpMVAccelWrapperParams) extends Module {
   //when(adder.io.in.valid) {printf("ADD %x + %x\n", adder.io.in.bits.first, adder.io.in.bits.second)}
 
   // make write requests and connect write data
-  val makeWrRq = {x: UInt => idToReq(x, true)}
-  io.mp.memWrReq <> StreamFilter(idQ.deq, reqType, makeWrRq)
+  io.mp.memWrReq <> idsToReqs(idQ.deq, true)
+
   io.mp.memWrDat <> adder.io.out
 
   io.mp.memWrRsp.ready := io.startRegular
