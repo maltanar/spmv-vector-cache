@@ -16,15 +16,17 @@ unsigned int resBase = 0x43c00000;
 #if defined(HWSPMV_BUFFERALL)
 	#include "HardwareSpMV.h"
 	#define HWSPMV	HardwareSPMV
+	static const char * hwSpMVIDString = "BufferAll";
 #elif defined(HWSPMV_BUFFERNONE)
 	#include "HardwareSpMVBufferNone.h"
 	#define HWSPMV HardwareSpMVBufferNone
+	static const char * hwSpMVIDString = "BufferNone";
 #endif
 
 int main(int argc, char *argv[]) {
   Xil_DCacheDisable();
 
-  cout << "SpMVAccel-BufferAll" << endl;
+  cout << "SpMVAccel-" << hwSpMVIDString << endl;
   cout << "=====================================" << endl;
 
   SparseMatrix * A = SparseMatrix::fromMemory(matrixMetaBase);
