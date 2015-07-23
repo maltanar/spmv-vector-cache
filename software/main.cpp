@@ -50,6 +50,14 @@ int main(int argc, char *argv[]) {
 
   cout << "Memcmp result = " << res << endl;
 
+  if(res != 0) {
+	  unsigned int diffs = 0;
+	  for(SpMVIndex i = 0; i < A->getRows(); i++) {
+		  if(y[i] != goldenY[i]) diffs++;
+	  }
+	  cout << "A total of " << diffs << " result elements are different." << endl;
+  }
+
   cout << "Exiting..." << endl;
 
   return 0;

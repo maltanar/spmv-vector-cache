@@ -21,6 +21,7 @@ class SpMVFrontendBufferNone(val p: SpMVAccelWrapperParams) extends Module {
     val doneRegular = Bool(OUTPUT)
 
     // TODO debug+profiling outputs
+    val issueWindow = UInt(OUTPUT, width = 32)
 
     // value inputs
     val numNZ = UInt(INPUT, width = 32)
@@ -71,10 +72,9 @@ class SpMVFrontendBufferNone(val p: SpMVAccelWrapperParams) extends Module {
   redJoin.inA <> productQ.deq
   redJoin.inB <> io.rowIndIn
 
+  io.issueWindow := UInt(p.issueWindow)
   // TODO package this bit into own module (InterleavedReduceDRAM)
   val adder = Module(p.makeAdd())
-  // TODO IMPORTANT make this parametrizable!
-  lazy val maxThreads = 1
 
   val forkAll = {x: OperandWithID => x}
   val forkShadow = {x: OperandWithID => OperandWithID(UInt(0, width=1), x.id)}
@@ -83,15 +83,15 @@ class SpMVFrontendBufferNone(val p: SpMVAccelWrapperParams) extends Module {
 
   val forkGuard = Module(new StreamFork(opWidthIdType, opWidthIdType, shadowType,
                       forkAll, forkShadow)).io
-  val shadowQ = Module(new UniqueQueue(1, p.ptrWidth, maxThreads)).io
+  val shadowQ = Module(new UniqueQueue(1, p.ptrWidth, p.issueWindow)).io
   forkGuard.in <> redJoin.out
   forkGuard.outB <> shadowQ.enq
 
   val forkSplit = Module(new StreamFork(opWidthIdType, opWidthIdType, idType,
                     forkAll, forkId)).io
-  // TODO parametrize! must be big enough to accommodate maxThreads
+  // TODO parametrize! must be big enough to accommodate issueWindow
   // (or a bit smaller, since there are queues at the end of this)
-  val waitReadQ = Module(new Queue(opWidthIdType, 2+maxThreads)).io
+  val waitReadQ = Module(new Queue(opWidthIdType, 2+p.issueWindow)).io
   forkSplit.in <> forkGuard.outA
   forkSplit.outA <> waitReadQ.enq
 

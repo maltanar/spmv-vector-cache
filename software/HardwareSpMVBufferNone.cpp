@@ -23,6 +23,8 @@ HardwareSpMVBufferNone::HardwareSpMVBufferNone(unsigned int aBase, unsigned int 
 	m_accelBase = (volatile unsigned int *) aBase;
 	m_resetBase = (volatile unsigned int *) aReset;
 	m_acc = new SpMVAcceleratorBufferNoneDriver(m_accelBase);
+
+	cout << "Issue window: " << m_acc->issueWindow() << endl;
 }
 
 HardwareSpMVBufferNone::~HardwareSpMVBufferNone() {
