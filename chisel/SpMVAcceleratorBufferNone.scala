@@ -11,7 +11,7 @@ import java.io.{FileInputStream, DataInputStream}
 
 
 class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
-  override lazy val accelVersion: String = "alpha-2"
+  override lazy val accelVersion: String = "alpha-3"
 
   // plug unused register file elems / set defaults
   plugRegOuts()
@@ -40,10 +40,13 @@ class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableA
   }
 
   val out = new Bundle {
+    // status
     val statBackend = UInt(width = p.csrDataWidth)
     val statFrontend = UInt(width = p.csrDataWidth)
-    // TODO profiling outputs & other outputs
+    // profiling outputs & other outputs
     val issueWindow = UInt(width = p.csrDataWidth)
+    val hazardStalls = UInt(width = p.csrDataWidth)
+    val capacityStalls = UInt(width = p.csrDataWidth)
     val bwMon = new StreamMonitorOutIF()
     val fifoCountsCPRI = UInt(width = p.csrDataWidth)
     val fifoCountsNZIV = UInt(width = p.csrDataWidth)

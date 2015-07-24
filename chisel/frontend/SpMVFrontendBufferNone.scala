@@ -22,6 +22,8 @@ class SpMVFrontendBufferNone(val p: SpMVAccelWrapperParams) extends Module {
 
     // TODO debug+profiling outputs
     val issueWindow = UInt(OUTPUT, width = 32)
+    val hazardStalls = UInt(OUTPUT, width = 32)
+    val capacityStalls = UInt(OUTPUT, width = 32)
 
     // value inputs
     val numNZ = UInt(INPUT, width = 32)
@@ -161,5 +163,8 @@ class SpMVFrontendBufferNone(val p: SpMVAccelWrapperParams) extends Module {
   // use op count to drive the doneRegular signal
   io.doneRegular := (regOpCount === io.numNZ)
 
-  // TODO emit statistics (hazards, etc)
+  // emit some statistics
+  io.hazardStalls := Counter(shadowQ.hazard, scala.math.pow(2,32).toInt)._1
+  val capStallIndicator = !shadowQ.hazard & !shadowQ.enq.ready & shadowQ.enq.valid
+  io.capacityStalls := Counter(capStallIndicator, scala.math.pow(2,32).toInt)._1
 }
