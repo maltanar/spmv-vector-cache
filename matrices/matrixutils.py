@@ -53,6 +53,10 @@ def loadAndConvertMatrix(name, startAddr=dramBase):
 # read in a matrix, convert it to separate CSC SpMV data files + output
 # command info (for reading this from an SD card later)
 def convertMatrix(A, name, startAddr=dramBase):
+  if A.format != "csc":
+    print "Matrix must be in CSC format"
+    return
+    
   startingRow=0
   targetDir=outputBase + "/" + name
   if not os.path.exists(targetDir):
