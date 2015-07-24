@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
   for(SpMVIndex i = 0; i < A->getRows(); i++) { y[i] = (SpMVData) 0; }
 
   SpMV * spmv = new HWSPMV(accBase, resBase, A, x, y);
-  SoftwareSpMV check(A);
+  SoftwareSpMV check(A, x);
 
   spmv->exec();
   check.exec();
