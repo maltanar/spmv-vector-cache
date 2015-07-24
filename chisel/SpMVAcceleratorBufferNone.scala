@@ -258,7 +258,7 @@ class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableA
       //printWhenTransactionAggr("ReducerOperands", frontendM.reducer.operands)
     }
 
-    val matrixName = "circuit204"
+    val matrixName = "row64k"
 
     t.isTrace = false
     setThresholds()
