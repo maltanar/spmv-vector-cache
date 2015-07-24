@@ -10,8 +10,8 @@ void HardwareSpMVBufferNone::resetAccelerator() {
 	*m_resetBase = 0;
 }
 
-HardwareSpMVBufferNone::HardwareSpMVBufferNone(unsigned int aBase, unsigned int aReset,
-		SparseMatrix * A, SpMVData *x, SpMVData *y) :
+HardwareSpMVBufferNone::HardwareSpMVBufferNone(unsigned int aBase,
+		unsigned int aReset, SparseMatrix * A, SpMVData *x, SpMVData *y) :
 		SpMV(A, x, y) {
 	// make sure all pointers are aligned
 	isAligned((unsigned int ) A->getIndPtrs());
@@ -25,6 +25,11 @@ HardwareSpMVBufferNone::HardwareSpMVBufferNone(unsigned int aBase, unsigned int 
 	m_acc = new SpMVAcceleratorBufferNoneDriver(m_accelBase);
 
 	cout << "Issue window: " << m_acc->issueWindow() << endl;
+
+	m_totalCycles = 0;
+	m_activeCycles = 0;
+	m_hazardStalls = 0;
+	m_capacityStalls = 0;
 }
 
 HardwareSpMVBufferNone::~HardwareSpMVBufferNone() {
@@ -50,7 +55,6 @@ void HardwareSpMVBufferNone::setupRegs() {
 	m_acc->thresRowInd(256);
 }
 
-
 bool HardwareSpMVBufferNone::readBackendStatus(BackendStatMask mask) {
 	return (m_acc->statBackend() & (unsigned int) mask) != 0;
 }
@@ -64,7 +68,7 @@ bool HardwareSpMVBufferNone::exec() {
 	setupRegs();
 
 	regular();
-
+	printAllStatistics();
 
 	return false;
 }
@@ -78,13 +82,7 @@ void HardwareSpMVBufferNone::regular() {
 			&& readFrontendStatus(frontendMaskDoneRegular)))
 		;
 
-	//cout << "Hazard stalls: " << m_acc->hazardStalls() << endl;
-	cout << "Active cycles: " << m_acc->bwMon_activeCycles() << endl;
-	cout << "Total cycles: " << m_acc->bwMon_totalCycles() << endl;
-	float act = (float) (m_acc->bwMon_activeCycles())
-			/ (float) (m_acc->bwMon_totalCycles());
-	cout << "Active/Total = " << act << endl;
-	//printAllFIFOLevels();
+	updateStatistics();
 
 	m_acc->startRegular(0);
 }
@@ -114,4 +112,20 @@ void HardwareSpMVBufferNone::printAllFIFOLevels() {
 	cout << "RowInd: " << getFIFOLevel(fifoRowInd) << endl;
 	cout << "NZData: " << getFIFOLevel(fifoNZData) << endl;
 	cout << "InpVec: " << getFIFOLevel(fifoInpVec) << endl;
+}
+
+void HardwareSpMVBufferNone::printAllStatistics() {
+	cout << "Hazard stalls: " << m_hazardStalls << endl;
+	cout << "Capacity stalls: " << m_capacityStalls << endl;
+	cout << "Active cycles: " << m_activeCycles << endl;
+	cout << "Total cycles: " <<m_totalCycles << endl;
+	float act = (float) m_activeCycles / (float) m_totalCycles;
+	cout << "Active/Total = " << act << endl;
+}
+
+void HardwareSpMVBufferNone::updateStatistics() {
+	m_totalCycles = m_acc->bwMon_totalCycles();
+	m_activeCycles = m_acc->bwMon_activeCycles();
+	m_hazardStalls = m_acc->hazardStalls();
+	m_capacityStalls = m_acc->capacityStalls();
 }

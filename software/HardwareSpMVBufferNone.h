@@ -12,6 +12,7 @@ public:
 
 	virtual bool exec();
 	void printAllFIFOLevels();
+	void printAllStatistics();
 
 protected:
 	volatile unsigned int * m_accelBase;
@@ -47,6 +48,13 @@ protected:
 		fifoOutVec = 5
 	} SpMVFIFONum;
 	volatile unsigned short getFIFOLevel(SpMVFIFONum num);
+
+	// statistics
+	void updateStatistics();
+	unsigned int m_totalCycles;
+	unsigned int m_activeCycles;
+	unsigned int m_hazardStalls;
+	unsigned int m_capacityStalls;
 };
 
 #endif /* HARDWARESPMVBUFFERNONE_H_ */
