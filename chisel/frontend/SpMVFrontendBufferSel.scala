@@ -10,9 +10,8 @@ import TidbitsDMA._
 // - first <ocmDepth> elements are stored in OCM for fast access
 // - all other elements are stored in DRAM
 
-// TODO add components for the OCM buffering pipe
-// TODO add interleaver/deinterleavers to route into correct pipe
-// TODO connect control/status signals
+// TODO compile fixes
+// TODO connect OCM mcif and init/dump signals, all control/status signals
 // TODO add counters for profiling
 // TODO add custom backend for limited resvec dump operation
 // TODO add top-level + software, test
@@ -21,6 +20,7 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   val opType = UInt(width=p.opWidth)
   val idType = UInt(width=p.ptrWidth)
   val opWidthIdType = new OperandWithID(p.opWidth, p.ptrWidth)
+  val opsAndId = new OperandWithID(2*p.opWidth, p.ptrWidth)
   val shadowType = new OperandWithID(1, p.ptrWidth)
   val syncOpType = new SemiringOperands(p.opWidth)
 
@@ -58,6 +58,29 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
     val mp = new GenericMemoryMasterPort(p.toMRP())
     val baseOutputVec = UInt(INPUT, width = 32)
   }
+
+  // useful functions for working with stream forks and joins
+  val routeFxn = {x: OperandWithID => if (x.id < p.ocmDepth) UInt(0) else UInt(1)}
+  val forkAll = {x: OperandWithID => x}
+  val forkShadow = {x: OperandWithID => OperandWithID(UInt(0, width=1), x.id)}
+  val forkId = {x: OperandWithID => x.id}
+  val forkOp = {x: OperandWithID => x.data}
+  val readFilter = {x: GenericMemoryResponse => x.readData}
+  val forkOps = {
+    val opA = x.data(2*p.opWidth-1, p.opWidth)
+    val opB = x.data(p.opWidth-1, 0)
+    x: OperandWithID => SemiringOperands(p.opWidth, opA, opB)
+  }
+  val joinOpIdOp= {
+    (a: OperandWithID, b: UInt) => OperandWithID(Cat(a.data, b), a.id)
+  }
+  val joinOpId = {
+    (a: UInt, b: UInt) => Ope
+  }
+  val joinOpOp = {(a: UInt, b: UInt) => SemiringOperands(p.opWidth, a, b)}
+
+
+
   // instantiate multiply operator
   val mul = Module(p.makeMul())
   // instantiate StreamDelta and StreamRepeatElem
@@ -70,8 +93,7 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   rptGen.inRepCnt <> deltaGen.deltas
 
   // wire up multiplier inputs with StreamJoin
-  val fxnM = {(a: UInt, b: UInt) => SemiringOperands(p.opWidth, a, b)}
-  val mulOpJoin = Module(new StreamJoin(opType, opType, syncOpType, fxnM)).io
+  val mulOpJoin = Module(new StreamJoin(opType, opType, syncOpType, joinOpOp)).io
   mulOpJoin.inA <> rptGen.out
   mulOpJoin.inB <> io.nzDataIn
   mul.io.in <> mulOpJoin.out
@@ -88,32 +110,122 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   val productQ = Module(new Queue(UInt(width=p.opWidth), 16)).io
   productQ.enq <> mul.io.out
   // join products and rowind data to pass to reducer
-  val fxnR = {(op: UInt, id: UInt) => OperandWithID(op, id)}
-  val redJoin = Module(new StreamJoin(opType, idType, opWidthIdType, fxnR)).io
+  val joinOpId = {(op: UInt, id: UInt) => OperandWithID(op, id)}
+  val redJoin = Module(new StreamJoin(opType, idType, opWidthIdType, joinOpId)).io
   redJoin.inA <> productQ.deq
   redJoin.inB <> io.rowIndIn
 
-  // TODO package this bit into own module (InterleavedReduceDRAM)
+
+  // split incoming (id, contr) pairs based on the id
+  // * id < ocmDepth is directed to OCM pipe
+  // * id >= ocmDepth is directed to DRAM pipe
+  val pipeSw = Module(new StreamDeinterleaver(2, opWidthIdType, routeFxn)).io
+  pipeSw.in <> redJoin.out
+  val opsOCM = pipeSw.out(0)
+  val opsDDR = pipeSw.out(1)
+
+  // =========================================================================
+  // =========================================================================
+  // =========================================================================
+  // components for the shared adder
+
+  val addInOCM = addInterleave.in(0)
+  val addInDDR = addInterleave.in(0)
+
+  val addInterleave = Module(new StreamInterleaver(2, opsAndId)).io
+  val addFork = Module(new StreamFork(opsAndId, syncOpType, idType, forkOps, forkId)).io
   val adder = Module(p.makeAdd())
+  val adderIdQ = Module(new Queue(idType, adder.latency)).io
+  val addJoin = Module(new StreamJoin(opType, idType, opWidthIdType, joinOpId)).io
+  val addDeinterleave = Module(new StreamDeinterleaver(2, opWidthIdType, routeFxn)).io
 
-  val forkAll = {x: OperandWithID => x}
-  val forkShadow = {x: OperandWithID => OperandWithID(UInt(0, width=1), x.id)}
-  val forkId = {x: OperandWithID => x.id}
-  val forkOp = {x: OperandWithID => x.data}
+  addInterleave.out <> addFork.in
+  // uncomment to debug adder inputs
+  //when(adder.io.in.valid) {printf("ADD %x + %x\n", adder.io.in.bits.first, adder.io.in.bits.second)}
+  addFork.outA <> adder.io.in
+  addFork.outB <> adderIdQ.enq
+  addJoin.inA <> adder.io.out
+  addJoin.inB <> adderIdQ.deq
+  addDeinterleave.in <> addJoin.out
 
-  val forkGuard = Module(new StreamFork(opWidthIdType, opWidthIdType, shadowType,
+  val addOutOCM = addDeinterleave.out(0)
+  val addOutDDR = addDeinterleave.out(1)
+
+  // =========================================================================
+  // =========================================================================
+  // =========================================================================
+  // components for the OCM pipe
+  val pOCM = new OCMParameters( p.ocmDepth*p.opWidth, p.opWidth, p.opWidth, 2,
+                                p.ocmReadLatency)
+  val ocm = Module(new OCMAndController(pOCM, p.ocmName, p.ocmPrebuilt)).io
+  val loadPort = contextStore.ocmUser(0)
+  val savePort = contextStore.ocmUser(1)
+  loadPort.req.writeEn := Bool(false)
+  loadPort.req.writeData := UInt(0)
+  // TODO explicitly parametrize OCM issue window?
+  lazy val ocmIssue = adder.latency + p.ocmReadLatency + p.ocmWriteLatency
+  val ocmShadow = Module(new UniqueQueue(1, p.ptrWidth, ocmIssue)).io
+  val ocmGuard = Module(new StreamFork(opWidthIdType, opWidthIdType, shadowType,
                       forkAll, forkShadow)).io
-  val shadowQ = Module(new UniqueQueue(1, p.ptrWidth, p.issueWindow)).io
-  forkGuard.in <> redJoin.out
-  forkGuard.outB <> shadowQ.enq
+  forkOCMGuard.in <> opsOCM
+  forkOCMGuard.outB <> ocmShadow.enq
+  val ocmWaitRead = Queue(forkOCMGuard.outA, p.ocmReadLatency+1)
+  // piggyback OCM read port
+  loadPort.req.addr := ocmShadow.enq.bits.id
+  val doOCMRead = ocmShadow.enq.valid & ocmShadow.enq.ready
+  // generate read valid signal
+  val ocmReadValid = ShiftRegister(doOCMRead, p.ocmReadLatency)
+  // there may be backpressure since we are sharing the adder with the
+  // DRAM pipe --
+  // ocm cannot respond to backpressure, so queue resulting read data
+  // TODO is 8 elements too big? max stalls?
+  val ocmReadData = Module(new Queue(opType, 8)).io
+  ocmReadData.enq.bits := loadPort.rsp.readData
+  ocmReadData.enq.valid := ocmReadValid
 
-  val forkSplit = Module(new StreamFork(opWidthIdType, opWidthIdType, idType,
+  val ocmAddJoin = Module(new StreamJoin(opWidthIdType, opType, opsAndId, joinOpIdOp)).io
+  ocmAddJoin.inA <> ocmWaitRead
+  ocmAddJoin.inB <> ocmReadData.deq
+
+  // connect to interleaver
+  ocmAddJoin.out <> addInOCM
+
+  // write results to OCM
+  addOutOCM.ready := io.startRegular
+  savePort.req.writeEn := addOutOCM.valid
+  savePort.req.addr := addOutOCM.bits.id
+  savePort.req.writeData := addOutOCM.bits.data
+
+  // remove from shadow queue upon write completion
+  // generate OCM write completion with shift register
+  ocmShadow.deq.ready := ShiftRegister(savePort.req.writeEn, p.ocmWriteLatency)
+
+  // register for counting completed OCM operations
+  val regOCMOpCount = Reg(init = UInt(0, 32))
+
+  val completedOCMOp = ocmShadow.deq.ready & ocmShadow.deq.valid
+
+  when (!io.startRegular) {regOCMOpCount := UInt(0)}
+  .otherwise {when (completedOCMOp) {regOCMOpCount := regOCMOpCount + UInt(1)}}
+
+  // =========================================================================
+  // =========================================================================
+  // =========================================================================
+  // components for the DDR pipe
+
+  val ddrGuard = Module(new StreamFork(opWidthIdType, opWidthIdType, shadowType,
+                      forkAll, forkShadow)).io
+  val ddrShadow = Module(new UniqueQueue(1, p.ptrWidth, p.issueWindow)).io
+  ddrGuard.in <> opsDDR
+  ddrGuard.outB <> ddrShadow.enq
+
+  val ddrIdSplit = Module(new StreamFork(opWidthIdType, opWidthIdType, idType,
                     forkAll, forkId)).io
   // TODO parametrize! must be big enough to accommodate issueWindow
   // (or a bit smaller, since there are queues at the end of this)
-  val waitReadQ = Module(new Queue(opWidthIdType, 2+p.issueWindow)).io
-  forkSplit.in <> forkGuard.outA
-  forkSplit.outA <> waitReadQ.enq
+  val ddrWaitRead = Module(new Queue(opWidthIdType, 2+p.issueWindow)).io
+  ddrIdSplit.in <> ddrGuard.outA
+  ddrIdSplit.outA <> ddrWaitRead.enq
 
   val opBytes = UInt(p.opWidth/8)
   val reqType = new GenericMemoryRequest(p.toMRP())
@@ -123,7 +235,10 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
     val req = reqs.bits
     req.channelID := UInt(0)  // TODO parametrize!
     req.isWrite := Bool(wr)
-    req.addr := io.baseOutputVec + ids.bits * opBytes
+    // rebase output vector for DDR accesses (first ocmDepth elems are
+    // stored in OCM during regular operation)
+    val ddrOutVecBase = io.baseOutputVec + opBytes * UInt(p.ocmDepth)
+    req.addr := ddrOutVecBase + ids.bits * opBytes
     req.numBytes := opBytes
     req.metaData := UInt(0)
 
@@ -133,53 +248,38 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
     return reqs
   }
   // make read request stream from id stream
-  io.mp.memRdReq <> idsToReqs(forkSplit.outB, false)
+  io.mp.memRdReq <> idsToReqs(ddrIdSplit.outB, false)
 
-  // TODO parametrize depths
-  val opQ = Module(new Queue(opType, 4)).io
-  val idQ = Module(new Queue(idType, 4)).io
+  val ddrAddJoin = Module(new StreamJoin(opWidthIdType, opType, opsAndId, joinOpIdOp)).io
+  ddrAddJoin.inA <> ddrWaitRead.deq
+  ddrAddJoin.inB <> StreamFilter(io.mp.memRdRsp, opType, readFilter)
 
-  val forkOpId = Module(new StreamFork(opWidthIdType, opType, idType,
-                      forkOp, forkId)).io
-  // fork op-id stream into op and id streams
-  forkOpId.in <> waitReadQ.deq
-  opQ.enq <> forkOpId.outA
-  idQ.enq <> forkOpId.outB
+  // connect to interleaver
+  ddrAddJoin.out <> addInDDR
 
-  // join operands for addition
-  // op A: loaded "old sum" from memory (filtered read response)
-  // op B: new contributions (opQ)
-  val filterFxn = {x: GenericMemoryResponse => x.readData}
-  val fxn = {(a: UInt, b: UInt) => SemiringOperands(p.opWidth, a, b)}
-  val addOpJoin = Module(new StreamJoin(opType, opType, syncOpType, fxn)).io
-  addOpJoin.inA <> StreamFilter(io.mp.memRdRsp, opType, filterFxn)
-  addOpJoin.inB <> opQ.deq
-
-  addOpJoin.out <> adder.io.in
-  // uncomment to debug adder inputs
-  //when(adder.io.in.valid) {printf("ADD %x + %x\n", adder.io.in.bits.first, adder.io.in.bits.second)}
+  // TODO add DDR write logic for result + remove from shadow queue
+  val ddrWriteFork = Module(new StreamFork(opWidthIdType, opType, idType, forkOp, forkId)).io
+  ddrWriteFork.in <> addOutDDR
 
   // make write requests and connect write data
-  io.mp.memWrReq <> idsToReqs(idQ.deq, true)
+  io.mp.memWrDat <> ddrWriteFork.outA
+  io.mp.memWrReq <> idsToReqs(ddrWriteFork.outB, true)
 
-  io.mp.memWrDat <> adder.io.out
-
+  // remove completed ops from shadow queue
   io.mp.memWrRsp.ready := io.startRegular
-  shadowQ.deq.ready := io.mp.memWrRsp.valid
+  ddrShadow.deq.ready := io.mp.memWrRsp.valid
 
-  // register for counting completed operations
-  val regOpCount = Reg(init = UInt(0, 32))
-  //io.opCount := regOpCount
+  // register for counting completed DDR operations
+  val regDDROpCount = Reg(init = UInt(0, 32))
 
-  val completedOp = shadowQ.deq.ready & shadowQ.deq.valid
+  val completedDDROp = ddrShadow.deq.ready & ddrShadow.deq.valid
 
-  when (!io.startRegular) {regOpCount := UInt(0)}
-  .otherwise {
-    when (completedOp) {regOpCount := regOpCount + UInt(1)}
-  }
-
-  // use op count to drive the doneRegular signal
-  io.doneRegular := (regOpCount === io.numNZ)
+  when (!io.startRegular) {regDDROpCount := UInt(0)}
+  .otherwise {when (completedDDROp) {regDDROpCount := regDDROpCount + UInt(1)}}
 
   // TODO emit statistics (hazards, etc)
+
+  // use op counts to drive the doneRegular signal
+  val totalOps = regDDROpCount + regOCMOpCount
+  io.doneRegular := (totalOps === io.numNZ)
 }
