@@ -112,7 +112,7 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   // split incoming (id, contr) pairs based on the id
   // * id < ocmDepth is directed to OCM pipe
   // * id >= ocmDepth is directed to DRAM pipe
-  val pipeSw = Module(new StreamDeinterleaver(2, opWidthIdType, routeFxn)).io
+  val pipeSw = Module(new StreamDeinterleaverQueued(2, opWidthIdType, routeFxn, 2)).io
   pipeSw.in <> redJoin.out
   val opsOCM = pipeSw.out(0)
   val opsDDR = pipeSw.out(1)
@@ -130,7 +130,7 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   val adder = Module(p.makeAdd())
   val adderIdQ = Module(new Queue(idType, adder.latency)).io
   val addJoin = Module(new StreamJoin(opType, idType, opWidthIdType, joinOpId)).io
-  val addDeinterleave = Module(new StreamDeinterleaver(2, opWidthIdType, routeFxn)).io
+  val addDeinterleave = Module(new StreamDeinterleaverQueued(2, opWidthIdType, routeFxn,2)).io
 
   addInterleave.out <> addFork.in
   // uncomment to debug adder inputs
