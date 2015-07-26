@@ -244,10 +244,7 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
     val req = reqs.bits
     req.channelID := UInt(0)  // TODO parametrize!
     req.isWrite := Bool(wr)
-    // rebase output vector for DDR accesses (first ocmDepth elems are
-    // stored in OCM during regular operation)
-    val ddrOutVecBase = io.baseOutputVec + opBytes * UInt(p.ocmDepth)
-    req.addr := ddrOutVecBase + ids.bits * opBytes
+    req.addr := io.baseOutputVec + ids.bits * opBytes
     req.numBytes := opBytes
     req.metaData := UInt(0)
 
