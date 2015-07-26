@@ -11,8 +11,6 @@ import TidbitsDMA._
 // - all other elements are stored in DRAM
 
 // TODO add counters for profiling
-// TODO add custom backend for limited resvec dump operation
-// TODO add top-level + software, test
 
 class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   val opType = UInt(width=p.opWidth)
@@ -234,7 +232,6 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   val ddrIdSplit = Module(new StreamFork(opWidthIdType, opWidthIdType, idType,
                     forkAll, forkId)).io
   // TODO parametrize! must be big enough to accommodate issueWindow
-  // (or a bit smaller, since there are queues at the end of this)
   val ddrWaitRead = Module(new Queue(opWidthIdType, 2+p.issueWindow)).io
   ddrIdSplit.in <> ddrGuard.outA
   ddrIdSplit.outA <> ddrWaitRead.enq
@@ -269,7 +266,7 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   // connect to interleaver
   ddrAddJoin.out <> addInDDR
 
-  // TODO add DDR write logic for result + remove from shadow queue
+  // add DDR write logic for result + remove from shadow queue
   val ddrWriteFork = Module(new StreamFork(opWidthIdType, opType, idType, forkOp, forkId)).io
   ddrWriteFork.in <> addOutDDR
 

@@ -72,7 +72,7 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
   val frontend = frontendM.io
   frontend <> in
   out <> frontend
-  // TODO frontend stats
+  // frontend stats
   val statFrontendL = List(frontend.doneInit, frontend.doneWrite, frontend.doneRegular)
   out.statFrontend := Cat(statFrontendL)
 
