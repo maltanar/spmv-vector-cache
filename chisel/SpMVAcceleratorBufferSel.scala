@@ -10,8 +10,8 @@ import java.nio.ByteBuffer
 import java.io.{FileInputStream, DataInputStream}
 
 
-class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
-  override lazy val accelVersion: String = "alpha-3"
+class SpMVAcceleratorBufferSel(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
+  override lazy val accelVersion: String = "alpha-1"
 
   // plug unused register file elems / set defaults
   plugRegOuts()
@@ -23,7 +23,9 @@ class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableA
 
   val in = new Bundle {
     // control inputs
+    val startInit = Bool()
     val startRegular = Bool()
+    val startWrite = Bool()
     // value inputs
     val numRows = UInt(width = p.csrDataWidth)
     val numCols = UInt(width = p.csrDataWidth)
@@ -44,9 +46,6 @@ class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableA
     val statBackend = UInt(width = p.csrDataWidth)
     val statFrontend = UInt(width = p.csrDataWidth)
     // profiling outputs & other outputs
-    val issueWindow = UInt(width = p.csrDataWidth)
-    val hazardStalls = UInt(width = p.csrDataWidth)
-    val capacityStalls = UInt(width = p.csrDataWidth)
     val bwMon = new StreamMonitorOutIF()
     val fifoCountsCPRI = UInt(width = p.csrDataWidth)
     val fifoCountsNZIV = UInt(width = p.csrDataWidth)
@@ -56,7 +55,10 @@ class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableA
 
 
   // instantiate backend, connect memory port
-  val backend = Module(new SpMVBackend(p, 0)).io
+  val backend = Module(new SpMVBackend(p, 0) {
+    // backend only produces the OCM-stored part of res.vec
+    override lazy val outputVecBytes = oprBytes*UInt(p.ocmDepth)
+    }).io
   // use partial interface fulfilment to connect backend interfaces
   // produces warnings, but should work fine
   backend <> in
@@ -67,13 +69,13 @@ class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableA
   out.statBackend := Cat(statBackendL)
 
   // instantiate frontend
-  val frontendM = Module(new SpMVFrontendBufferNone(p))
+  val frontendM = Module(new SpMVFrontendBufferSel(p))
   val frontend = frontendM.io
   frontend <> in
   out <> frontend
   frontend.mp <> io.mp(1)
   // frontend stats
-  val statFrontendL = List(frontend.doneRegular)
+  val statFrontendL = List(frontend.doneInit, frontend.doneWrite, frontend.doneRegular)
   out.statFrontend := Cat(statFrontendL)
 
   // instantiate FIFOs for backend-frontend communication
@@ -89,6 +91,15 @@ class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableA
   val inpVecFIFO = Module(new CustomQueue(tInpVec, p.inpVecFIFODepth)).io
   inpVecFIFO.enq <> backend.inputVecOut
   inpVecFIFO.deq <> frontend.inputVecIn
+
+  // output vector FIFO is optional
+  if(p.outVecFIFODepth == 0) {
+    backend.outputVecIn <> frontend.outputVecOut
+  } else {
+    val outVecFIFO = Module(new CustomQueue(tInpVec, p.outVecFIFODepth)).io
+    outVecFIFO.deq <> backend.outputVecIn
+    outVecFIFO.enq <> frontend.outputVecOut
+  }
 
 
   // wire-up FIFO levels to backend monitoring inputs
@@ -261,7 +272,7 @@ class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableA
       //printWhenTransactionAggr("ReducerOperands", frontendM.reducer.operands)
     }
 
-    val matrixName = "row64k"
+    val matrixName = "i64k"
 
     t.isTrace = false
     setThresholds()
@@ -270,8 +281,9 @@ class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableA
     //makeInputVector(i => 1)
     cleanOutputVector()
 
-
+    spmvInit()
     spmvRegular()
+    spmvWrite()
 
     saveOutVec("out-"+matrixName+".bin")
 

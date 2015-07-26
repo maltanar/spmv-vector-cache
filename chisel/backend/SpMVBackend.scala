@@ -53,7 +53,7 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   val rowIndBytes = ptrBytes*io.numNZ
   val nzBytes = oprBytes*io.numNZ
   val inputVecBytes = oprBytes*io.numCols
-  val outputVecBytes = oprBytes*io.numRows
+  lazy val outputVecBytes = oprBytes*io.numRows
 
   // instantiate request interleaver for mixing reqs from read chans
   val intl = Module(new ReqInterleaver(4, pMem)).io

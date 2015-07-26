@@ -29,6 +29,7 @@ object MainObj {
   val instFxnMap: Map[String, () => AXIWrappableAccel] = Map(
     "SpMVAccel-BufferAll" -> {() => new SpMVAccelerator(p)},
     "SpMVAccel-BufferNone" -> {() => new SpMVAcceleratorBufferNone(p)},
+    "SpMVAccel-BufferSel" -> {() => new SpMVAcceleratorBufferSel(p)},
     "TestSpMVBackend" -> {() => new TestSpMVBackend()},
     "TestSpMVFrontend" -> {() => new TestSpMVFrontend()}
   )

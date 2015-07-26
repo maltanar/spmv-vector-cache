@@ -45,6 +45,7 @@ class SpMVAccelWrapperParams() extends BaseWrapperParams() {
   // TODO add directly to OCMParameters?
   lazy val ocmPrebuilt = if(isVerilog()) true else false
   val ocmReadLatency = 1
+  val ocmWriteLatency = 1
   val ocmName = "WrapperBRAM"+opWidth.toString+"x"+ocmDepth.toString
 }
 
