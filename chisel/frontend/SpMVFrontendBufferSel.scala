@@ -10,8 +10,6 @@ import TidbitsDMA._
 // - first <ocmDepth> elements are stored in OCM for fast access
 // - all other elements are stored in DRAM
 
-// TODO compile fixes
-// TODO connect OCM mcif and init/dump signals, all control/status signals
 // TODO add counters for profiling
 // TODO add custom backend for limited resvec dump operation
 // TODO add top-level + software, test
@@ -44,6 +42,7 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
     // value inputs
     val numNZ = UInt(INPUT, width = 32)
     val numRows = UInt(INPUT, width = 32)
+    val baseOutputVec = UInt(INPUT, width = 32)
     // data exchange with backend
     val colPtrIn = Decoupled(UInt(width = p.ptrWidth)).flip
     val rowIndIn = Decoupled(UInt(width = p.ptrWidth)).flip
@@ -56,7 +55,6 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
     // BufferSel-specific frontend ports:
     // port for res.vec reads/writes
     val mp = new GenericMemoryMasterPort(p.toMRP())
-    val baseOutputVec = UInt(INPUT, width = 32)
   }
 
   // useful functions for working with stream forks and joins
@@ -155,6 +153,22 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   val pOCM = new OCMParameters( p.ocmDepth*p.opWidth, p.opWidth, p.opWidth, 2,
                                 p.ocmReadLatency)
   val ocm = Module(new OCMAndController(pOCM, p.ocmName, p.ocmPrebuilt)).io
+  // ocm init/dump signal connections
+  ocm.mcif.start := io.startInit | io.startWrite
+  ocm.mcif.mode := Mux(io.startWrite, UInt(1), UInt(0))
+  // set fill port to an always-zero stream
+  // TODO make result vec. initial value customizable?
+  ocm.mcif.fillPort.valid := Bool(true)
+  ocm.mcif.fillPort.bits := UInt(0)
+  // set up fill/dump start+range
+  ocm.mcif.fillDumpStart := UInt(0)
+  ocm.mcif.fillDumpCount := UInt(p.ocmDepth)
+  // connect OCMC dump port to result vec. output
+  io.outputVecOut <> ocm.mcif.dumpPort
+  // init and write done signals driven directly by the OCMC
+  io.doneInit := ocm.mcif.done & io.startInit
+  io.doneWrite := ocm.mcif.done & io.startWrite
+
   val loadPort = ocm.ocmUser(0)
   val savePort = ocm.ocmUser(1)
   loadPort.req.writeEn := Bool(false)
