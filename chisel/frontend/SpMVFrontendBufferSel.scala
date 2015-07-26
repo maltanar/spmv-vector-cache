@@ -60,23 +60,21 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   }
 
   // useful functions for working with stream forks and joins
-  val routeFxn = {x: OperandWithID => if (x.id < p.ocmDepth) UInt(0) else UInt(1)}
+  val routeFxn = {x: OperandWithID => Mux(x.id < UInt(p.ocmDepth), UInt(0), UInt(1))}
   val forkAll = {x: OperandWithID => x}
   val forkShadow = {x: OperandWithID => OperandWithID(UInt(0, width=1), x.id)}
   val forkId = {x: OperandWithID => x.id}
   val forkOp = {x: OperandWithID => x.data}
   val readFilter = {x: GenericMemoryResponse => x.readData}
-  val forkOps = {
+  def forkOps(x: OperandWithID) : SemiringOperands = {
     val opA = x.data(2*p.opWidth-1, p.opWidth)
     val opB = x.data(p.opWidth-1, 0)
-    x: OperandWithID => SemiringOperands(p.opWidth, opA, opB)
+    return SemiringOperands(p.opWidth, opA, opB)
   }
   val joinOpIdOp= {
     (a: OperandWithID, b: UInt) => OperandWithID(Cat(a.data, b), a.id)
   }
-  val joinOpId = {
-    (a: UInt, b: UInt) => Ope
-  }
+  val joinOpId = {(op: UInt, id: UInt) => OperandWithID(op, id)}
   val joinOpOp = {(a: UInt, b: UInt) => SemiringOperands(p.opWidth, a, b)}
 
 
@@ -110,7 +108,6 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   val productQ = Module(new Queue(UInt(width=p.opWidth), 16)).io
   productQ.enq <> mul.io.out
   // join products and rowind data to pass to reducer
-  val joinOpId = {(op: UInt, id: UInt) => OperandWithID(op, id)}
   val redJoin = Module(new StreamJoin(opType, idType, opWidthIdType, joinOpId)).io
   redJoin.inA <> productQ.deq
   redJoin.inB <> io.rowIndIn
@@ -158,18 +155,19 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   val pOCM = new OCMParameters( p.ocmDepth*p.opWidth, p.opWidth, p.opWidth, 2,
                                 p.ocmReadLatency)
   val ocm = Module(new OCMAndController(pOCM, p.ocmName, p.ocmPrebuilt)).io
-  val loadPort = contextStore.ocmUser(0)
-  val savePort = contextStore.ocmUser(1)
+  val loadPort = ocm.ocmUser(0)
+  val savePort = ocm.ocmUser(1)
   loadPort.req.writeEn := Bool(false)
   loadPort.req.writeData := UInt(0)
   // TODO explicitly parametrize OCM issue window?
   lazy val ocmIssue = adder.latency + p.ocmReadLatency + p.ocmWriteLatency
   val ocmShadow = Module(new UniqueQueue(1, p.ptrWidth, ocmIssue)).io
-  val ocmGuard = Module(new StreamFork(opWidthIdType, opWidthIdType, shadowType,
+  val ocmWaitReadQ = Module(new Queue(opWidthIdType, p.ocmReadLatency+1)).io
+  val forkOCMGuard = Module(new StreamFork(opWidthIdType, opWidthIdType, shadowType,
                       forkAll, forkShadow)).io
   forkOCMGuard.in <> opsOCM
   forkOCMGuard.outB <> ocmShadow.enq
-  val ocmWaitRead = Queue(forkOCMGuard.outA, p.ocmReadLatency+1)
+  forkOCMGuard.outA <> ocmWaitReadQ.enq
   // piggyback OCM read port
   loadPort.req.addr := ocmShadow.enq.bits.id
   val doOCMRead = ocmShadow.enq.valid & ocmShadow.enq.ready
@@ -184,7 +182,7 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   ocmReadData.enq.valid := ocmReadValid
 
   val ocmAddJoin = Module(new StreamJoin(opWidthIdType, opType, opsAndId, joinOpIdOp)).io
-  ocmAddJoin.inA <> ocmWaitRead
+  ocmAddJoin.inA <> ocmWaitReadQ.deq
   ocmAddJoin.inB <> ocmReadData.deq
 
   // connect to interleaver
