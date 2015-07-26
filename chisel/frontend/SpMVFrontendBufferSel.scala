@@ -124,10 +124,10 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   // =========================================================================
   // components for the shared adder
 
-  val addInOCM = addInterleave.in(0)
-  val addInDDR = addInterleave.in(0)
-
   val addInterleave = Module(new StreamInterleaver(2, opsAndId)).io
+  val addInOCM = addInterleave.in(0)
+  val addInDDR = addInterleave.in(1)
+
   val addFork = Module(new StreamFork(opsAndId, syncOpType, idType, forkOps, forkId)).io
   val adder = Module(p.makeAdd())
   val adderIdQ = Module(new Queue(idType, adder.latency)).io
