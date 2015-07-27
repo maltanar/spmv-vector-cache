@@ -21,6 +21,11 @@ echo "Running component synthesis..."
 cd $COMP_SYNTH_DIR
 ./run-synth.sh > $LOG_DIR/synth-comp.log
 
+if [ ! -e $SYS_SYNTH_DIR ]; then
+  echo "System synthesis project not found, creating..."
+  cd $SYS_SYNTH_DIR/..
+  vivado -mode batch -source setup-project.tcl > $LOG_DIR/create-project.log
+fi
 echo "Running system synthesis..."
 cd $SYS_SYNTH_DIR
 ./synth-and-update.sh $ACCEL_VARIANT > $LOG_DIR/synth-sys.log
