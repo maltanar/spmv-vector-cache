@@ -4,7 +4,6 @@ if {$argc != 1} {
 }
 
 open_project [lindex $argv 0]
-source sys-sources.xdc
 reset_run synth_1
 reset_run impl_1
 launch_runs synth_1
