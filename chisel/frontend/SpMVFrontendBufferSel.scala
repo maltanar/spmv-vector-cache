@@ -31,7 +31,7 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
     val doneRegular = Bool(OUTPUT)
     val doneWrite = Bool(OUTPUT)
 
-    // TODO debug+profiling outputs
+    // debug+profiling outputs
     val hazardStallsOCM = UInt(OUTPUT, width = 32)
     val capacityStallsOCM = UInt(OUTPUT, width = 32)
     val hazardStallsDDR = UInt(OUTPUT, width = 32)
@@ -285,9 +285,16 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   when (!io.startRegular) {regDDROpCount := UInt(0)}
   .otherwise {when (completedDDROp) {regDDROpCount := regDDROpCount + UInt(1)}}
 
-  // TODO emit statistics (hazards, etc)
-
   // use op counts to drive the doneRegular signal
   val totalOps = regDDROpCount + regOCMOpCount
   io.doneRegular := (totalOps === io.numNZ)
+
+  // emit statistics (hazards, etc)
+  def Counter32Bit(cond: Bool) = {Counter(cond, scala.math.pow(2,32).toInt)._1}
+  io.hazardStallsOCM := Counter32Bit(ocmShadow.hazard)
+  io.hazardStallsDDR := Counter32Bit(ddrShadow.hazard)
+  val ocmCapStall = !ocmShadow.hazard & ocmShadow.enq.valid & !ocmShadow.enq.ready
+  val ddrCapStall = !ddrShadow.hazard & ddrShadow.enq.valid & !ddrShadow.enq.ready
+  io.capacityStallsOCM := Counter32Bit(ocmCapStall)
+  io.capacityStallsDDR := Counter32Bit(ddrCapStall)
 }
