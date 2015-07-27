@@ -10,8 +10,8 @@ void HardwareSpMVBufferSel::resetAccelerator() {
 	*m_resetBase = 0;
 }
 
-HardwareSpMVBufferSel::HardwareSpMVBufferSel(unsigned int aBase, unsigned int aReset,
-		SparseMatrix * A, SpMVData *x, SpMVData *y) :
+HardwareSpMVBufferSel::HardwareSpMVBufferSel(unsigned int aBase,
+		unsigned int aReset, SparseMatrix * A, SpMVData *x, SpMVData *y) :
 		SpMV(A, x, y) {
 	// make sure all pointers are aligned
 	isAligned((unsigned int ) A->getIndPtrs());
@@ -26,6 +26,13 @@ HardwareSpMVBufferSel::HardwareSpMVBufferSel(unsigned int aBase, unsigned int aR
 
 	cout << "# OCM words: " << m_acc->ocmWords() << endl;
 	cout << "DDR issue window: " << m_acc->issueWindow() << endl;
+
+	m_totalCycles = 0;
+	m_activeCycles = 0;
+	m_hazardStallsOCM = 0;
+	m_hazardStallsDDR = 0;
+	m_capacityStallsOCM = 0;
+	m_capacityStallsDDR = 0;
 }
 
 HardwareSpMVBufferSel::~HardwareSpMVBufferSel() {
@@ -91,6 +98,8 @@ bool HardwareSpMVBufferSel::exec() {
 	regular();
 	write();
 
+	printAllStatistics();
+
 	return false;
 }
 
@@ -103,13 +112,7 @@ void HardwareSpMVBufferSel::regular() {
 			&& readFrontendStatus(frontendMaskDoneRegular)))
 		;
 
-	//cout << "Hazard stalls: " << m_acc->hazardStalls() << endl;
-	cout << "Active cycles: " << m_acc->bwMon_activeCycles() << endl;
-	cout << "Total cycles: " << m_acc->bwMon_totalCycles() << endl;
-	float act = (float) (m_acc->bwMon_activeCycles())
-			/ (float) (m_acc->bwMon_totalCycles());
-	cout << "Active/Total = " << act << endl;
-
+	updateStatistics();
 	m_acc->startRegular(0);
 }
 
@@ -138,4 +141,25 @@ void HardwareSpMVBufferSel::printAllFIFOLevels() {
 	cout << "RowInd: " << getFIFOLevel(fifoRowInd) << endl;
 	cout << "NZData: " << getFIFOLevel(fifoNZData) << endl;
 	cout << "InpVec: " << getFIFOLevel(fifoInpVec) << endl;
+}
+
+void HardwareSpMVBufferSel::updateStatistics() {
+	m_totalCycles = m_acc->bwMon_totalCycles();
+	m_activeCycles = m_acc->bwMon_activeCycles();
+	m_hazardStallsOCM = m_acc->hazardStallsOCM();
+	m_hazardStallsDDR = m_acc->hazardStallsDDR();
+	m_capacityStallsOCM = m_acc->capacityStallsOCM();
+	m_capacityStallsDDR = m_acc->capacityStallsDDR();
+}
+
+void HardwareSpMVBufferSel::printAllStatistics() {
+	cout << "OCM hazard stalls: " << m_hazardStallsOCM << endl;
+	cout << "OCM capacity stalls: " << m_capacityStallsOCM << endl;
+	cout << "DDR hazard stalls: " << m_hazardStallsDDR << endl;
+	cout << "DDR capacity stalls: " << m_capacityStallsDDR << endl;
+
+	cout << "Active cycles: " << m_activeCycles << endl;
+	cout << "Total cycles: " << m_totalCycles << endl;
+	float act = (float) m_activeCycles / (float) m_totalCycles;
+	cout << "Active/Total = " << act << endl;
 }
