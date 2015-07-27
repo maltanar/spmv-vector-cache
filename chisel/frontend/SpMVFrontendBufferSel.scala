@@ -160,7 +160,8 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   ocm.mcif.fillPort.bits := UInt(0)
   // set up fill/dump start+range
   ocm.mcif.fillDumpStart := UInt(0)
-  ocm.mcif.fillDumpCount := UInt(p.ocmDepth)
+  // use min(numRows, ocmDepth) as the fill/dump count for the OCM
+  ocm.mcif.fillDumpCount := Mux(io.numRows < UInt(p.ocmDepth), io.numRows, UInt(p.ocmDepth))
   // connect OCMC dump port to result vec. output
   io.outputVecOut <> ocm.mcif.dumpPort
   // init and write done signals driven directly by the OCMC

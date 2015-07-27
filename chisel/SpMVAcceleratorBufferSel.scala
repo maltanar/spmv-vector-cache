@@ -65,7 +65,7 @@ class SpMVAcceleratorBufferSel(p: SpMVAccelWrapperParams) extends AXIWrappableAc
   // instantiate backend, connect memory port
   val backend = Module(new SpMVBackend(p, 0) {
     // backend only produces the OCM-stored part of res.vec
-    override lazy val outputVecBytes = oprBytes*UInt(p.ocmDepth)
+    override lazy val outputVecBytes = oprBytes*Mux(io.numRows < UInt(p.ocmDepth), io.numRows, UInt(p.ocmDepth))
     }).io
   // use partial interface fulfilment to connect backend interfaces
   // produces warnings, but should work fine
