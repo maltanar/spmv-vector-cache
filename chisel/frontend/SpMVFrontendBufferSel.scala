@@ -268,7 +268,9 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   ddrWriteFork.in <> addOutDDR
 
   // make write requests and connect write data
-  io.mp.memWrDat <> ddrWriteFork.outA
+  // note the queue on the write data: this is to avoid deadlock situations
+  // due to the ddrWriteFork forcing the waddr/wdata streams to be both ready
+  io.mp.memWrDat <> Queue(ddrWriteFork.outA, 2)
   io.mp.memWrReq <> idsToReqs(ddrWriteFork.outB, true)
 
   // remove completed ops from shadow queue

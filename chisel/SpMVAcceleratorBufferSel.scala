@@ -51,7 +51,6 @@ class SpMVAcceleratorBufferSel(p: SpMVAccelWrapperParams) extends AXIWrappableAc
     val bwMon = new StreamMonitorOutIF()
     val fifoCountsCPRI = UInt(width = p.csrDataWidth)
     val fifoCountsNZIV = UInt(width = p.csrDataWidth)
-
   }
   override lazy val regMap = manageRegIO(in, out)
 
