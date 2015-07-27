@@ -21,6 +21,10 @@ unsigned int resBase = 0x43c00000;
 	#include "HardwareSpMVBufferNone.h"
 	#define HWSPMV HardwareSpMVBufferNone
 	static const char * hwSpMVIDString = "BufferNone";
+#elif defined(HWSPMV_BUFFERSEL)
+	#include "HardwareSpMVBufferSel.h"
+	#define HWSPMV HardwareSpMVBufferSel
+	static const char * hwSpMVIDString = "BufferSel";
 #endif
 
 int main(int argc, char *argv[]) {
