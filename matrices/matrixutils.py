@@ -3,6 +3,7 @@
 import io, numpy, scipy, struct, os
 from scipy import io as ios
 from copy import deepcopy
+import matplotlib.pyplot as plot
 
 dramBase=0x8000100
 
@@ -26,6 +27,53 @@ def makeGoldenResult(A, name):
     f=io.open(outputBase+"/"+name+"/golden.bin", "wb")
     f.write(y)
     f.close()
+
+
+# generate a histogram of row lengths
+def generateRowLenHistogram(matrix):
+  csr = matrix.tocsr()
+  histogram = dict()
+  for j in range(1, csr.shape[1]):
+    currentRowLen = csr.indptr[j] - csr.indptr[j-1]
+    if currentRowLen in histogram:
+      histogram[currentRowLen] += 1
+    else:
+      histogram[currentRowLen] = 1
+  return histogram
+
+# display histogram
+def showHistogram(h):
+  k = h.keys()
+  v = h.values()
+  pos = numpy.arange(len(k))
+  width = 1.0
+  ax = plot.axes()
+  ax.set_xticks(pos+ (width/2))
+  ax.set_xticklabels(k)
+  plot.bar(pos, v, width, color='r')
+  plot.show()
+
+# Make permutation matrix from row permutation vector
+def makePermutationMatrixFromVector(rowpermvec):
+  row_indices = range(len(rowpermvec))
+  col_indices = rowpermvec
+  data = [1 for x in rowpermvec]
+  permMatrix = scipy.sparse.coo_matrix((data, (row_indices, col_indices)))
+  return permMatrix
+
+
+def permuteLongestRowFirst(matrix):
+  csr = matrix.tocsr()
+  # make sure the indices are sorted
+  csr.sort_indices()
+  # make list of last col in each row
+  rowLengths = [csr.indptr[i+1]-csr.indptr[i] for i in range(csr.shape[0])]
+  rowLengths = zip(rowLengths, range(csr.shape[0]))
+  rowLengths.sort(reverse=True)
+  # recover row indices to use as permutation vector
+  permArray = [x[1] for x in rowLengths]
+  return makePermutationMatrixFromVector(permArray) * csr
+
 
 # load matrix from local file system (Matrix Market format file must exist
 # under localRoot)
@@ -54,8 +102,8 @@ def loadAndConvertMatrix(name, startAddr=dramBase):
 # command info (for reading this from an SD card later)
 def convertMatrix(A, name, startAddr=dramBase):
   if A.format != "csc":
-    print "Matrix must be in CSC format"
-    return
+    print "Matrix must be in CSC format! Converting.."
+    A = A.tocsc()
     
   startingRow=0
   targetDir=outputBase + "/" + name
