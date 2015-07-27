@@ -26,4 +26,7 @@ cd $SYS_SYNTH_DIR
 ./synth-and-update.sh $ACCEL_VARIANT > $LOG_DIR/synth-sys.log
 
 cd $ORIG_DIR
+# print the last 50 lines of synthesis log (succcess/fail, timing summary)
+cat $LOG_DIR/synth-sys.log | tail -n 50
+
 echo "$0 finished"
