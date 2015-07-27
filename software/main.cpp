@@ -1,10 +1,12 @@
 #include <stdlib.h>
 #include <iostream>
 #include <string.h>
+#include <string>
 #include "xil_cache.h"
 #include "SparseMatrix.h"
 #include "SoftwareSpMV.h"
 #include "malloc_aligned.h"
+#include "sdcard.h"
 
 using namespace std;
 
@@ -14,55 +16,95 @@ unsigned int resBase = 0x43c00000;
 
 // use compile-time defines to decide which type of HW SpMV to use
 #if defined(HWSPMV_BUFFERALL)
-	#include "HardwareSpMV.h"
-	#define HWSPMV	HardwareSPMV
-	static const char * hwSpMVIDString = "BufferAll";
+#include "HardwareSpMV.h"
+#define HWSPMV	HardwareSPMV
+static const char * hwSpMVIDString = "BufferAll";
 #elif defined(HWSPMV_BUFFERNONE)
-	#include "HardwareSpMVBufferNone.h"
-	#define HWSPMV HardwareSpMVBufferNone
-	static const char * hwSpMVIDString = "BufferNone";
+#include "HardwareSpMVBufferNone.h"
+#define HWSPMV HardwareSpMVBufferNone
+static const char * hwSpMVIDString = "BufferNone";
 #elif defined(HWSPMV_BUFFERSEL)
-	#include "HardwareSpMVBufferSel.h"
-	#define HWSPMV HardwareSpMVBufferSel
-	static const char * hwSpMVIDString = "BufferSel";
+#include "HardwareSpMVBufferSel.h"
+#define HWSPMV HardwareSpMVBufferSel
+static const char * hwSpMVIDString = "BufferSel";
 #endif
 
+static string loadedMatrixName;
+
+// load named matrix from SD card
+// note that we assume a certain directory structure and file naming convention
+void loadSparseMatrixFromSDCard(string name) {
+	if (loadedMatrixName == name)
+		return;
+
+	mount();	// mount the sd card
+	string baseDir = name + "/";
+	readFromSDCard((baseDir + name + "-meta.bin").c_str(), matrixMetaBase);
+	CompressedSparseMetadata *md = (CompressedSparseMetadata *) matrixMetaBase;
+	readFromSDCard((baseDir + name + "-indptr.bin").c_str(), md->indPtrBase);
+	readFromSDCard((baseDir + name + "-inds.bin").c_str(), md->indBase);
+	readFromSDCard((baseDir + name + "-data.bin").c_str(), md->nzDataBase);
+	unmount(); // unmount the sd card
+	loadedMatrixName = name;
+}
+
+// interactive version for loading matrices from SD card
+void loadSparseMatrixFromSDCard() {
+	cout << "Enter matrix name to load, q to exit: " << endl;
+	string name;
+	cin >> name;
+	if (name == "q")
+		exit(0);
+	loadSparseMatrixFromSDCard(name);
+}
+
 int main(int argc, char *argv[]) {
-  Xil_DCacheDisable();
+	loadedMatrixName = "";
+	Xil_DCacheDisable();
 
-  cout << "SpMVAccel-" << hwSpMVIDString << endl;
-  cout << "=====================================" << endl;
+	cout << "SpMVAccel-" << hwSpMVIDString << endl;
+	cout << "=====================================" << endl;
 
-  SparseMatrix * A = SparseMatrix::fromMemory(matrixMetaBase);
+	while (1) {
+		loadSparseMatrixFromSDCard();
 
-  A->printSummary();
+		SparseMatrix * A = SparseMatrix::fromMemory(matrixMetaBase);
 
-  SpMVData *x = (SpMVData *) malloc_aligned(64, sizeof(SpMVData)*A->getCols());
-  SpMVData *y = (SpMVData *) malloc_aligned(64, sizeof(SpMVData)*A->getRows());
+		A->printSummary();
 
-  for(SpMVIndex i = 0; i < A->getCols(); i++) { x[i] = (SpMVData) 1; }
-  for(SpMVIndex i = 0; i < A->getRows(); i++) { y[i] = (SpMVData) 0; }
+		SpMVData *x = (SpMVData *) malloc_aligned(64,
+				sizeof(SpMVData) * A->getCols());
+		SpMVData *y = (SpMVData *) malloc_aligned(64,
+				sizeof(SpMVData) * A->getRows());
 
-  SpMV * spmv = new HWSPMV(accBase, resBase, A, x, y);
-  SoftwareSpMV check(A, x);
+		for (SpMVIndex i = 0; i < A->getCols(); i++) {
+			x[i] = (SpMVData) 1;
+		}
+		for (SpMVIndex i = 0; i < A->getRows(); i++) {
+			y[i] = (SpMVData) 0;
+		}
 
-  spmv->exec();
-  check.exec();
+		SpMV * spmv = new HWSPMV(accBase, resBase, A, x, y);
+		SoftwareSpMV check(A, x);
 
-  SpMVData * goldenY = check.getY();
-  int res = memcmp(goldenY, y, sizeof(SpMVData)*A->getRows());
+		spmv->exec();
+		check.exec();
 
-  cout << "Memcmp result = " << res << endl;
+		SpMVData * goldenY = check.getY();
+		int res = memcmp(goldenY, y, sizeof(SpMVData) * A->getRows());
 
-  if(res != 0) {
-	  unsigned int diffs = 0;
-	  for(SpMVIndex i = 0; i < A->getRows(); i++) {
-		  if(y[i] != goldenY[i]) diffs++;
-	  }
-	  cout << "A total of " << diffs << " result elements are different." << endl;
-  }
+		cout << "Memcmp result = " << res << endl;
 
-  cout << "Exiting..." << endl;
+		if (res != 0) {
+			unsigned int diffs = 0;
+			for (SpMVIndex i = 0; i < A->getRows(); i++) {
+				if (y[i] != goldenY[i])
+					diffs++;
+			}
+			cout << "A total of " << diffs << " result elements are different."
+					<< endl;
+		}
+	}
 
-  return 0;
+	return 0;
 }

@@ -4,6 +4,16 @@
 typedef unsigned int SpMVIndex;
 typedef double SpMVData;
 
+typedef struct {
+	unsigned int numRows;
+	unsigned int numCols;
+	unsigned int numNZ;
+	unsigned int startingRow;
+	unsigned int indPtrBase;
+	unsigned int indBase;
+	unsigned int nzDataBase;
+} CompressedSparseMetadata;
+
 class SparseMatrix {
 public:
 	SparseMatrix();
@@ -39,16 +49,6 @@ public:
 	}
 
 protected:
-	typedef struct {
-		unsigned int numRows;
-		unsigned int numCols;
-		unsigned int numNZ;
-		unsigned int startingRow;
-		unsigned int indPtrBase;
-		unsigned int indBase;
-		unsigned int nzDataBase;
-	} CompressedSparseMetadata;
-
 	unsigned int m_rows;
 	unsigned int m_cols;
 	unsigned int m_nz;
