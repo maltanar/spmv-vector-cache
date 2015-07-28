@@ -35,7 +35,7 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
   val depthBitCount = log2Up(depth)
   val tagBitCount = addrBits - depthBitCount
 
-  val sInit :: sActive :: sFinishPendingWrites :: sIssueReadReq :: sEvictWrite :: sCacheFill :: sInitCacheFlush :: sCacheFlush :: Nil = Enum(UInt(), 8)
+  val sInit :: sActive :: sFinishPendingWrites :: sIssueReadReq :: sEvictWrite :: sCacheFill :: sInitCacheFlush :: sCacheFlush :: sDone :: Nil = Enum(UInt(), 9)
   val state = Reg(init = UInt(sActive))
   val initCtr = Reg(init = UInt(0, depthBitCount))
 
@@ -89,13 +89,14 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
 
   // drive default outputs
   io.externalIF.writeComplete := Bool(false)
-  io.externalIF.done := (state === sActive)
+  io.externalIF.done := Bool(false)
 
   val opBytes = UInt(p.opWidth/8)
   io.externalIF.write.req.ready := Bool(false)  // whether cache can accept a write req
   io.externalIF.mem.memWrReq.valid := Bool(false) // no write request to main mem
   io.externalIF.mem.memWrReq.bits.driveDefaults()
   io.externalIF.mem.memWrReq.bits.isWrite := Bool(true)
+  io.externalIF.mem.memWrReq.bits.numBytes := opBytes
   io.externalIF.mem.memWrReq.bits.addr := vecBase + currentWriteReq*opBytes // default write miss addr
 
   io.externalIF.mem.memWrDat.valid := io.externalIF.mem.memWrReq.valid
@@ -104,6 +105,7 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
 
   io.externalIF.mem.memRdReq.valid := Bool(false)    // no read request to main mem
   io.externalIF.mem.memRdReq.bits.driveDefaults()
+  io.externalIF.mem.memRdReq.bits.numBytes := opBytes
   io.externalIF.mem.memRdReq.bits.addr := vecBase + currentReq*opBytes
   io.externalIF.read.req.ready := Bool(false)   // whether cache can accept a read req
   io.externalIF.mem.memRdRsp.ready := Bool(false)   // whether cache can accept a mem resp
@@ -141,8 +143,8 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
     // increment the initialization counter
     initCtr := initCtr + UInt(1)
 
-    // go to sActive when all blocks initialized
-    when (initCtr === UInt(depth-1)) { state := sActive}
+    // go to sDone when all blocks initialized
+    when (initCtr === UInt(depth-1)) { state := sDone}
   }
   .elsewhen (state === sInitCacheFlush)
   {
@@ -170,10 +172,16 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
 
       mp.memWrDat.bits := io.dataPortA.rsp.readData
 
-      // go to sActive when all blocks flushed
+      // go to sDone when all blocks flushed
       // when initCtr is 0 (overflow) we have reached the
       // last block, since we read the index initCtr-1
-      when (initCtr === UInt(0)) { state := sActive}
+      when (initCtr === UInt(0)) { state := sDone}
+    }
+  }
+  .elsewhen (state === sDone) {
+    io.externalIF.done := Bool(true)
+    when(!io.externalIF.startWrite & !io.externalIF.startInit) {
+      state := sActive
     }
   }
   .elsewhen (state === sActive)
