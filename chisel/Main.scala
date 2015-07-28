@@ -30,6 +30,7 @@ object MainObj {
     "SpMVAccel-BufferAll" -> {() => new SpMVAccelerator(p)},
     "SpMVAccel-BufferNone" -> {() => new SpMVAcceleratorBufferNone(p)},
     "SpMVAccel-BufferSel" -> {() => new SpMVAcceleratorBufferSel(p)},
+    "SpMVAccel-OldCache" -> {() => new SpMVAcceleratorOldCache(p)},
     "TestSpMVBackend" -> {() => new TestSpMVBackend()},
     "TestSpMVFrontend" -> {() => new TestSpMVFrontend()}
   )

@@ -12,11 +12,12 @@ class SimpleDMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
                                 p.ocmReadLatency)
   val dataMem = Module(if (p.ocmPrebuilt) new OnChipMemory(pOCM, p.ocmName) else
                   new AsymDualPortRAM(pOCM)).io
-  val controller = Module(new CacheController(p, pOCM)).io
+  val ctlM = Module(new CacheController(p, pOCM))
+  val ctl = ctlM.io
 
-  io <> controller.externalIF
-  controller.dataPortA <> dataMem.ports(0)
-  controller.dataPortB <> dataMem.ports(1)
-  controller.tagPortA <> tagMem.portA
-  controller.tagPortB <> tagMem.portB
+  io <> ctl.externalIF
+  ctl.dataPortA <> dataMem.ports(0)
+  ctl.dataPortB <> dataMem.ports(1)
+  ctl.tagPortA <> tagMem.portA
+  ctl.tagPortB <> tagMem.portB
 }
