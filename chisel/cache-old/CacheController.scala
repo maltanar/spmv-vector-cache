@@ -35,9 +35,9 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
   val depthBitCount = log2Up(depth)
   val tagBitCount = addrBits - depthBitCount
 
-  val sInit :: sActive :: sFinishPendingWrites :: sIssueReadReq :: sEvictWrite :: sCacheFill :: sInitCacheFlush :: sCacheFlush :: sDone :: Nil = Enum(UInt(), 9)
+  val sInit :: sActive :: sFinishPendingWrites :: sIssueReadReq :: sEvictWrite :: sCacheFill :: sCacheFlush :: sDone :: Nil = Enum(UInt(), 8)
   val state = Reg(init = UInt(sActive))
-  val initCtr = Reg(init = UInt(0, depthBitCount))
+  val initCtr = Reg(init = UInt(0, depthBitCount+1))
 
   // shorthands for current read request
   val currentReq = io.externalIF.read.req.bits
@@ -146,25 +146,22 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
     // go to sDone when all blocks initialized
     when (initCtr === UInt(depth-1)) { state := sDone}
   }
-  .elsewhen (state === sInitCacheFlush)
-  {
-    // this state only exists to "prefetch" the line 0 content from cache data mem
-    io.dataPortA.req.addr := initCtr
-    initCtr := initCtr + UInt(1)
-    state := sCacheFlush
-  }
   .elsewhen (state === sCacheFlush)
   {
     // use initCtr as cache mem read address
     // data will be available next cycle
     io.dataPortA.req.addr := initCtr
 
+    // go to sDone when all blocks flushed
     when (canDoExtWrite)
     {
       initCtr := initCtr + UInt(1)
-      val fetchedInd = initCtr - UInt(1)
+      // prefetch
+      io.dataPortA.req.addr := initCtr + UInt(1)
+
       // read tag on port A
       // tag reads are immediately available
+      val fetchedInd = initCtr(depthBitCount-1, 0)
       io.tagPortA.addr := fetchedInd
 
       mp.memWrReq.valid := currentReqLineValid
@@ -172,10 +169,7 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
 
       mp.memWrDat.bits := io.dataPortA.rsp.readData
 
-      // go to sDone when all blocks flushed
-      // when initCtr is 0 (overflow) we have reached the
-      // last block, since we read the index initCtr-1
-      when (initCtr === UInt(0)) { state := sDone}
+      when (initCtr === UInt(depth-1)) { state := sDone}
     }
   }
   .elsewhen (state === sDone) {
@@ -186,10 +180,12 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
   }
   .elsewhen (state === sActive)
   {
-    when (io.externalIF.startWrite)
+    when (io.externalIF.startWrite & (regPendingWrites === UInt(0)))
     {
-      // flush the cache
-      state := sInitCacheFlush
+      // flush the cache (after all pending writes are finished)
+      state := sCacheFlush
+      // "prefetch" the line 0 content from cache data mem
+      io.dataPortA.req.addr := UInt(0)
       initCtr := UInt(0)
     } .elsewhen (io.externalIF.startInit) {
       state := sInit
