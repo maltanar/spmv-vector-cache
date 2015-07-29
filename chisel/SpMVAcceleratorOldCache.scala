@@ -248,7 +248,17 @@ class SpMVAcceleratorOldCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       val v = t.peek(decif.valid)
       val r = t.peek(decif.ready)
       if(v == 1 && r == 1) {
-        println(name +" : " + t.peek(decif.bits).toString)
+        println(name + "@"+ t.t.toString + " : " + t.peek(decif.bits).toString)
+      }
+    }
+
+    def printWhenTransactionCond(name: String, decif: DecoupledIO[UInt],
+    cond: BigInt => Boolean) = {
+      val v = t.peek(decif.valid)
+      val r = t.peek(decif.ready)
+      val c = cond(t.peek(decif.bits))
+      if(v == 1 && r == 1 && c) {
+        println(name + "@"+ t.t.toString + " : " + t.peek(decif.bits).toString)
       }
     }
 
@@ -258,7 +268,7 @@ class SpMVAcceleratorOldCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       val r = t.peek(decif.ready)
       val c = cond(t.peek(decif.bits))
       if(v == 1 && r == 1 && c) {
-        println(name + ":")
+        println(name + "@"+ t.t.toString + " : ")
         t.isTrace=true
         t.peek(decif.bits)
         t.isTrace=false
@@ -269,9 +279,24 @@ class SpMVAcceleratorOldCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       val v = t.peek(decif.valid)
       val r = t.peek(decif.ready)
       if(v == 1 && r == 1) {
-        println(name + ":")
+        println(name + "@"+ t.t.toString + " : ")
         t.isTrace=true
         t.peek(decif.bits)
+        println(t.peek(frontendM.cacheM.ctlM.state).toString)
+        println(t.peek(frontendM.cacheM.ctlM.regPendingWrites).toString)
+        t.isTrace=false
+      }
+    }
+
+    def printWhenTransactionAggrSp[T <: Aggregate](name: String, decif: DecoupledIO[T], mon: T => Bits) = {
+      val v = t.peek(decif.valid)
+      val r = t.peek(decif.ready)
+      if(v == 1 && r == 1) {
+        println(name + "@"+ t.t.toString + " : ")
+        t.isTrace=true
+        t.peek(mon(decif.bits))
+        println(t.peek(frontendM.cacheM.ctlM.state).toString)
+        println(t.peek(frontendM.cacheM.ctlM.regPendingWrites).toString)
         t.isTrace=false
       }
     }
@@ -282,16 +307,6 @@ class SpMVAcceleratorOldCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       //printWhenTransaction("RowInd", rowIndFIFO.deq)
       //printWhenTransaction("NZData", nzDataFIFO.deq)
       //printWhenTransaction("InpVec", inpVecFIFO.deq)
-      //printWhenTransactionAggr("ReducerOperands", frontendM.reducer.operands)
-      //printWhenTransactionAggr("$", frontendM.io.mp.memRdReq)
-      //printWhenTransactionAggrCond("$", frontendM.cache.read.rsp)
-      val cnd = {x: Array[BigInt] => x(1) == 679}
-      printWhenTransactionAggrCond("$", frontendM.cache.write.req, cnd)
-      val cc = frontendM.cacheM.ctlM
-      /*println(t.peek(cc.readCount).toString)
-      println(t.peek(cc.writeCount).toString)
-      println(t.peek(cc.readMissCount).toString)
-      println(t.peek(cc.writeMissCount).toString)*/
     }
 
     def traceWrite() = {
@@ -299,7 +314,7 @@ class SpMVAcceleratorOldCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       //printWhenTransaction("$", frontendM.io.mp.memWrDat)
     }
 
-    val matrixName = "circuit204"
+    val matrixName = "mark3jac140"
 
     t.isTrace = false
     setThresholds()
@@ -307,7 +322,7 @@ class SpMVAcceleratorOldCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
     makeInputVector(i => Dbl(1.0).litValue())
     //makeInputVector(i => 1)
     cleanOutputVector()
-
+    t.printAllRegs()
     spmvInit()
     spmvRegular()
     spmvWrite()
