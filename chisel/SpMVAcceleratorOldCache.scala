@@ -207,7 +207,9 @@ class SpMVAcceleratorOldCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       t.expectReg("out_statFrontend", 0)
       t.expectReg("out_statBackend", 0)
       t.writeReg("in_startRegular", 1)
-      while(!doneRegular()) {traceRegular()}
+      t.hooks("traceRegular") = traceRegular
+      while(!doneRegular()) {}
+      t.hooks.remove("traceRegular")
       t.writeReg("in_startRegular", 0)
       println("Finished regular SpMV operation @" + t.t.toString)
     }
@@ -250,6 +252,19 @@ class SpMVAcceleratorOldCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       }
     }
 
+    def printWhenTransactionAggrCond[T <: Aggregate](name: String, decif: DecoupledIO[T],
+    cond: Array[BigInt] => Boolean) = {
+      val v = t.peek(decif.valid)
+      val r = t.peek(decif.ready)
+      val c = cond(t.peek(decif.bits))
+      if(v == 1 && r == 1 && c) {
+        println(name + ":")
+        t.isTrace=true
+        t.peek(decif.bits)
+        t.isTrace=false
+      }
+    }
+
     def printWhenTransactionAggr[T <: Aggregate](name: String, decif: DecoupledIO[T]) = {
       val v = t.peek(decif.valid)
       val r = t.peek(decif.ready)
@@ -269,7 +284,9 @@ class SpMVAcceleratorOldCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       //printWhenTransaction("InpVec", inpVecFIFO.deq)
       //printWhenTransactionAggr("ReducerOperands", frontendM.reducer.operands)
       //printWhenTransactionAggr("$", frontendM.io.mp.memRdReq)
-      //printWhenTransactionAggr("$", frontendM.io.mp.memRdRsp)
+      //printWhenTransactionAggrCond("$", frontendM.cache.read.rsp)
+      val cnd = {x: Array[BigInt] => x(1) == 679}
+      printWhenTransactionAggrCond("$", frontendM.cache.write.req, cnd)
       val cc = frontendM.cacheM.ctlM
       /*println(t.peek(cc.readCount).toString)
       println(t.peek(cc.writeCount).toString)
