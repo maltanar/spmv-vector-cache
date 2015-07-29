@@ -28,6 +28,8 @@ class SpMVFrontendOldCache(val p: SpMVAccelWrapperParams) extends Module {
     val doneWrite = Bool(OUTPUT)
 
     // TODO debug+profiling outputs
+    val readMissCount = UInt(OUTPUT, 32)
+    val writeMissCount = UInt(OUTPUT, 32)
 
     // value inputs
     val numNZ = UInt(INPUT, width = 32)
@@ -108,6 +110,8 @@ class SpMVFrontendOldCache(val p: SpMVAccelWrapperParams) extends Module {
   cache.startWrite := io.startWrite
   io.doneInit := cache.done & io.startInit
   io.doneWrite := cache.done & io.startWrite
+  io.readMissCount := cache.readMissCount
+  io.writeMissCount := cache.writeMissCount
 
 
   val shadow = Module(new UniqueQueue(1, p.ptrWidth, p.issueWindow)).io
