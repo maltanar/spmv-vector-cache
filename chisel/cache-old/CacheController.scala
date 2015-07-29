@@ -99,7 +99,7 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
   io.externalIF.mem.memWrReq.bits.numBytes := opBytes
   io.externalIF.mem.memWrReq.bits.addr := vecBase + currentWriteReq*opBytes // default write miss addr
 
-  io.externalIF.mem.memWrDat.valid := io.externalIF.mem.memWrReq.valid
+  io.externalIF.mem.memWrDat.valid := Bool(false)
   io.externalIF.mem.memWrDat.bits := io.externalIF.write.req.bits.data   // mem write request data comes right from the input
 
 
@@ -166,7 +166,7 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
 
       mp.memWrReq.valid := currentReqLineValid
       mp.memWrReq.bits.addr := vecBase + opBytes*UInt(Cat(currentReqLineTag, fetchedInd))
-
+      mp.memWrDat.valid := currentReqLineValid
       mp.memWrDat.bits := io.dataPortA.rsp.readData
 
       when (initCtr === UInt(depth-1)) { state := sDone}
@@ -196,14 +196,15 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
       // no flush/init requested, cache ready to serve requests (no pending misses)
 
       // write port stuff ----------------------
-      // write port dumps all misses straight to main mem, so it can
-      // always accept as long as the main mem write port is available
-      io.externalIF.write.req.ready := canDoExtWrite
+      // write port dumps all misses straight to main mem
 
       when (io.externalIF.write.req.valid)
       {
         when (currentWriteReqTag === currentWriteReqLineTag & currentWriteReqLineValid)
         {
+          // accept write
+          io.externalIF.write.req.ready := Bool(true)
+
           // cache write hit
           // keep statistics for writes
           writeCount := writeCount + UInt(1)
@@ -216,8 +217,11 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
         }
         .elsewhen (canDoExtWrite)
         {
+          // accept write
+          io.externalIF.write.req.ready := Bool(true)
           // cache write miss, issue as main memory write request
           io.externalIF.mem.memWrReq.valid := Bool(true)
+          io.externalIF.mem.memWrDat.valid := Bool(true)
           // keep statistics for writes
           writeCount := writeCount + UInt(1)
           writeMissCount := writeMissCount + UInt(1)
@@ -279,7 +283,8 @@ class CacheController(p: SpMVAccelWrapperParams, pOCM: OCMParameters) extends Mo
       io.externalIF.mem.memWrReq.valid := currentReqLineValid
       // evicted address = line tag + current index
       io.externalIF.mem.memWrReq.bits.addr := vecBase+ opBytes*UInt(Cat(currentReqLineTag, currentReqInd))
-      // read evicted data from BRAM
+      // evicted data from BRAM to ext mem write channel
+      io.externalIF.mem.memWrDat.valid := currentReqLineValid
       io.externalIF.mem.memWrDat.bits := io.dataPortA.rsp.readData
       state := sCacheFill
     }
