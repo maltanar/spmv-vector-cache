@@ -18,6 +18,7 @@ unmanagedSourceDirectories in Compile <++= baseDirectory { base =>
     base / "frontend",
     base / "spmv-common",
     base / "tests",
-    base / "cache-old"
+    base / "cache-old",
+    base / "cache-new"
   )
 }

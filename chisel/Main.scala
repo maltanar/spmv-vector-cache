@@ -31,6 +31,7 @@ object MainObj {
     "SpMVAccel-BufferNone" -> {() => new SpMVAcceleratorBufferNone(p)},
     "SpMVAccel-BufferSel" -> {() => new SpMVAcceleratorBufferSel(p)},
     "SpMVAccel-OldCache" -> {() => new SpMVAcceleratorOldCache(p)},
+    "SpMVAccel-NewCache" -> {() => new SpMVAcceleratorNewCache(p)},
     "TestSpMVBackend" -> {() => new TestSpMVBackend()},
     "TestSpMVFrontend" -> {() => new TestSpMVFrontend()}
   )
@@ -39,7 +40,7 @@ object MainObj {
     if(args.size != 2) { printUsageAndExit() }
 
     val op = args(0)
-    val harnessMemDepth = 8*1024*1024
+    val harnessMemDepth = 64*1024*1024
 
     val cmpName = args(1)
     val instFxn = instFxnMap(cmpName)
