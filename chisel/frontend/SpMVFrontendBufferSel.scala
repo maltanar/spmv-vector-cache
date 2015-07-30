@@ -291,7 +291,6 @@ class SpMVFrontendBufferSel(val p: SpMVAccelWrapperParams) extends Module {
   io.doneRegular := (totalOps === io.numNZ)
 
   // emit statistics (hazards, etc)
-  def Counter32Bit(cond: Bool) = {Counter(cond, scala.math.pow(2,32).toInt)._1}
   io.hazardStallsOCM := Counter32Bit(ocmShadow.hazard)
   io.hazardStallsDDR := Counter32Bit(ddrShadow.hazard)
   val ocmCapStall = !ocmShadow.hazard & ocmShadow.enq.valid & !ocmShadow.enq.ready

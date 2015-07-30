@@ -106,3 +106,8 @@ object alignedIncrement {
     return res
   }
 }
+
+
+object Counter32Bit {
+  def apply(cond: Bool) = {Counter(cond, scala.math.pow(2,32).toInt)._1}
+}
