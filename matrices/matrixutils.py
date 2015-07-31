@@ -42,7 +42,7 @@ def prepareUFLMatrix(name):
         print "Extracting matrix..."
         tar = tarfile.open(fileName)
         for item in tar:
-            if item.name.endswith(".mtx"):
+            if item.name.endswith(name+".mtx"):
                 item.name = name+".mtx"
                 print item.name
                 tar.extract(item, localRoot)
