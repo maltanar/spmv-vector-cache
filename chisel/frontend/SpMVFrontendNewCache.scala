@@ -30,6 +30,8 @@ class SpMVFrontendNewCache(val p: SpMVAccelWrapperParams) extends Module {
     // TODO debug+profiling outputs
     val readMissCount = UInt(OUTPUT, 32)
     val writeMissCount = UInt(OUTPUT, 32)
+    val conflictMissCount = UInt(OUTPUT, 32)
+    val cacheState = UInt(OUTPUT, 32)
 
     // value inputs
     val numNZ = UInt(INPUT, width = 32)
@@ -112,8 +114,12 @@ class SpMVFrontendNewCache(val p: SpMVAccelWrapperParams) extends Module {
   io.doneWrite := cache.done & io.startWrite
   io.readMissCount := cache.readMissCount
   io.writeMissCount := cache.writeMissCount
+  io.conflictMissCount := cache.conflictMissCount
+  io.cacheState := cache.cacheState
 
-  // CATCH: shadow queue is narrow for NoWMVectorCache
+  // CATCH: shadow queue is narrow for NoWMVectorCache, essentially using the
+  // cacheline index bits of the element index as the comparison key
+  // this prevents operands that map to the same cacheline from entering
   val shadow = Module(new UniqueQueue(1, log2Up(p.ocmDepth), p.issueWindow)).io
   val cacheEntry = Module(new StreamFork(opWidthIdType, opWidthIdType, shadowType,
                       forkAll, forkShadow)).io

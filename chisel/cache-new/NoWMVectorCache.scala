@@ -103,6 +103,7 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   // statistics
   io.readCount := Counter32Bit(txn(io.read.req))
   io.writeCount := Counter32Bit(txn(io.write.req))
+  io.conflictMissCount := Counter32Bit(txn(ddr.memWrReq))
   io.readMissCount := regReadMissCount
   io.writeMissCount := UInt(0)  // this variant can have no write misses
 
@@ -145,6 +146,7 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   // cache control state machine
   val sActive :: sFill :: sFlush :: sDone :: sReadMiss1 :: sReadMiss2 :: sReadMiss3 :: Nil = Enum(UInt(), 7)
   val regState = Reg(init = UInt(sActive))
+  io.cacheState := regState
   // register for fill/flush line counting
   val regCacheInd = Reg(init = UInt(0, 32))
 

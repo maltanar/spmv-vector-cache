@@ -54,6 +54,8 @@ class SinglePortCacheIF(val p: SpMVAccelWrapperParams) extends Bundle {
   val readMissCount = UInt(OUTPUT, 32)
   val writeCount = UInt(OUTPUT, 32)
   val writeMissCount = UInt(OUTPUT, 32)
+  val conflictMissCount = UInt(OUTPUT, 32)
+  val cacheState = UInt(OUTPUT, 32)
 
   override def clone = { new SinglePortCacheIF(p).asInstanceOf[this.type] }
 }

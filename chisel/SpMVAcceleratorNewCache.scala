@@ -5,13 +5,14 @@ import TidbitsDMA._
 import TidbitsAXI._
 import TidbitsStreams._
 import TidbitsSimUtils._
+import TidbitsProfiler._
 import java.nio.file.{Files, Paths}
 import java.nio.ByteBuffer
 import java.io.{FileInputStream, DataInputStream}
 
 
 class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
-  override lazy val accelVersion: String = "alpha-1"
+  override lazy val accelVersion: String = "alpha-2"
 
   // plug unused register file elems / set defaults
   plugRegOuts()
@@ -39,6 +40,8 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
     val thresRowInd = UInt(width = p.csrDataWidth)
     val thresNZData = UInt(width = p.csrDataWidth)
     val thresInputVec = UInt(width = p.csrDataWidth)
+    // profiling inputs
+    val profileSel = UInt(width = p.csrDataWidth)
   }
 
   val out = new Bundle {
@@ -53,6 +56,8 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
     val fifoCountsNZIV = UInt(width = p.csrDataWidth)
     val readMissCount = UInt(width = p.csrDataWidth)
     val writeMissCount = UInt(width = p.csrDataWidth)
+    val conflictMissCount = UInt(width = p.csrDataWidth)
+    val profileCount = UInt(width = p.csrDataWidth)
   }
   override lazy val regMap = manageRegIO(in, out)
 
@@ -115,6 +120,13 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
   out.fifoCountsNZIV := Cat(pad16(nzDataFIFO.count), pad16(inpVecFIFO.count))
 
   out.bwMon := StreamMonitor(io.mp(0).memRdRsp, in.startRegular & !frontend.doneRegular)
+
+  // state profiler to monitor the cache activity
+  val sp = Module(new StateProfiler(7)).io
+  sp.start := in.startRegular
+  sp.probe := frontend.cacheState
+  sp.sel := in.profileSel
+  out.profileCount := sp.count
 
   // test
   override def defaultTest(t: WrappableAccelTester): Boolean = {
