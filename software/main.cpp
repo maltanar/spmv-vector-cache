@@ -14,6 +14,8 @@ unsigned int matrixMetaBase = 0x08000100;
 unsigned int accBase = 0x40000000;
 unsigned int resBase = 0x43c00000;
 
+#define HWSPMV_NEWCACHE
+
 // use compile-time defines to decide which type of HW SpMV to use
 #if defined(HWSPMV_BUFFERALL)
 #include "HardwareSpMV.h"
@@ -27,6 +29,10 @@ static const char * hwSpMVIDString = "BufferNone";
 #include "HardwareSpMVBufferSel.h"
 #define HWSPMV HardwareSpMVBufferSel
 static const char * hwSpMVIDString = "BufferSel";
+#elif defined(HWSPMV_NEWCACHE)
+#include "HardwareSpMVNewCache.h"
+#define HWSPMV HardwareSpMVNewCache
+static const char * hwSpMVIDString = "NewCache";
 #endif
 
 static string loadedMatrixName;
@@ -83,6 +89,8 @@ int main(int argc, char *argv[]) {
 		for (SpMVIndex i = 0; i < A->getRows(); i++) {
 			y[i] = (SpMVData) 0;
 		}
+
+		cout << "Signature: " << hex << *(volatile unsigned int *)accBase << dec << endl;
 
 		SpMV * spmv = new HWSPMV(accBase, resBase, A, x, y);
 		SoftwareSpMV check(A, x);
