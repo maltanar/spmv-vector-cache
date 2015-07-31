@@ -6,18 +6,8 @@ import TidbitsDMA._
 
 class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val io = new SinglePortCacheIF(p)
-
   val pOCM = new OCMParameters( p.ocmDepth*p.opWidth, p.opWidth, p.opWidth, 2,
                                 p.ocmReadLatency)
-
-  // TODO tagMem doesn't need to be this wide (and actually just needs 1 port)
-  // needs to be tagBits + 1 - wide
-  val tagMem = Module(if (p.ocmPrebuilt) new OnChipMemory(pOCM, p.ocmName) else
-                  new AsymDualPortRAM(pOCM)).io
-  val dataMem = Module(if (p.ocmPrebuilt) new OnChipMemory(pOCM, p.ocmName) else
-                  new AsymDualPortRAM(pOCM)).io
-
-  val ddr = io.mem
 
   // useful shorthands/definitions
   val lineSize = p.opWidth
@@ -29,8 +19,13 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   def cacheInd(x: UInt): UInt = {x(indBitCount-1, 0)}
   def cacheAddr(tag: UInt , ind: UInt): UInt = {Cat(tag, ind)}
 
-  val tagPortR = tagMem.ports(0)
-  val tagPortW = tagMem.ports(1)  // TODO unneeded?
+  // needs to be tagBits + 1 - wide (for the line valid bit)
+  val tagMem = Module(new WMTagRAM(tagBitCount+1, p.ocmDepth)).io
+  val dataMem = Module(if (p.ocmPrebuilt) new OnChipMemory(pOCM, p.ocmName) else
+                  new AsymDualPortRAM(pOCM)).io
+
+  val ddr = io.mem
+  val tagPortR = tagMem
   val dataPortR = dataMem.ports(0)
   val dataPortW = dataMem.ports(1)
 
@@ -70,10 +65,6 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   // writeEn & writeData are used during read miss replacement
   tagPortR.req.writeEn := Bool(false)
   tagPortR.req.writeData := Cat(regRdReqTag, Bits("b1"))
-
-
-  // tag access for write port (not used, maybe use for error checking)
-  tagPortW.req := NullOCMRequest(pOCM)
 
   // data access for read port
   dataPortR.req.addr := rdReqInd
