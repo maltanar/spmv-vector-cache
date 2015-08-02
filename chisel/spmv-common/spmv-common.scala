@@ -34,7 +34,7 @@ class SpMVAccelWrapperParams() extends BaseWrapperParams() {
   val makeMul: () => SemiringOp = {() => new DPMultiplier(4)}
   // ============= <parameters for BufferNone> ===============
   // how many simultaneously threads in flight to allow
-  val issueWindow = 2
+  val issueWindow = 6
   // ============= <parameters for BufferAll&Cache> ===============
   // OCM parameters -- TODO separate into own trait/class?
   // number of contexts in context storage
