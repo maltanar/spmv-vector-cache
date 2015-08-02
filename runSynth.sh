@@ -10,7 +10,7 @@ vivado -mode batch -source "$UTILS_ROOT/blockingSynth.tcl" -tclargs "$PRJ_ROOT/s
 
 # use this command to generate bitstreams for loading directly from the SD card:
 
-# write_cfgmem -format bin -interface SMAPx32 -size 128 -loadbit "up 0x0 main.bit" -file main.bin
+# write_cfgmem -format BIN -disablebitswap -size 128 -interface SMAPx32 -loadbit "up 0x0 cache1024.bit" -file cache1024A.bin
 
 # in ISE it looked like this:
 # promgen -b -w -p bin -data_width 32 -u 0 bitfile.bit -o bitfile.bin
