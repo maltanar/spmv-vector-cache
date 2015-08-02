@@ -7,6 +7,7 @@
 #include "SoftwareSpMV.h"
 #include "malloc_aligned.h"
 #include "sdcard.h"
+#include "devcfg.h"
 
 using namespace std;
 
@@ -43,14 +44,12 @@ void loadSparseMatrixFromSDCard(string name) {
 	if (loadedMatrixName == name)
 		return;
 
-	mount();	// mount the sd card
 	string baseDir = name + "/";
 	readFromSDCard((baseDir + name + "-meta.bin").c_str(), matrixMetaBase);
 	CompressedSparseMetadata *md = (CompressedSparseMetadata *) matrixMetaBase;
 	readFromSDCard((baseDir + name + "-indptr.bin").c_str(), md->indPtrBase);
 	readFromSDCard((baseDir + name + "-inds.bin").c_str(), md->indBase);
 	readFromSDCard((baseDir + name + "-data.bin").c_str(), md->nzDataBase);
-	unmount(); // unmount the sd card
 	loadedMatrixName = name;
 }
 
@@ -67,6 +66,9 @@ void loadSparseMatrixFromSDCard() {
 int main(int argc, char *argv[]) {
 	loadedMatrixName = "";
 	Xil_DCacheDisable();
+	mount();	// mount the sd card
+
+	//selectBitfile();
 
 	cout << "SpMVAccel-" << hwSpMVIDString << endl;
 	cout << "=====================================" << endl;
@@ -113,6 +115,7 @@ int main(int argc, char *argv[]) {
 					<< endl;
 		}
 	}
+	unmount(); // unmount the sd card
 
 	return 0;
 }
