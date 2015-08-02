@@ -44,7 +44,7 @@
 
 #include "xdevcfg.h"
 
-
+void selectBitfile();
 XDcfg *XDcfg_Initialize(u16 DeviceId);
 int XDcfg_TransferBitfile(XDcfg *Instance, u32 StartAddress, u32 WordLength);
 
