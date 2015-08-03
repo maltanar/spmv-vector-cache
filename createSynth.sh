@@ -12,9 +12,10 @@ WRAPPERS="BRAMWrappers QueueWrappers DPWrappers"
 PRJ_ROOT="$PRJS_ROOT/$PROJ_NAME"
 SYS_ROOT="$PRJ_ROOT/sys"
 
-# create system synthesis project
-mkdir -p $SYS_ROOT
+if [ ! -e $SYS_ROOT ]; then
+  # create system synthesis project
+  mkdir -p $SYS_ROOT
 
-# call tcl script to create Vivado project
-vivado -mode batch -source "$UTILS_ROOT/setup-project.tcl" -tclargs "$PROJ_NAME" "$SYS_ROOT" "$IP_ROOT" "$PATH_TO_COMP_VERILOG"
-
+  # call tcl script to create Vivado project
+  vivado -mode batch -source "$UTILS_ROOT/setup-project.tcl" -tclargs "$PROJ_NAME" "$SYS_ROOT" "$IP_ROOT" "$PATH_TO_COMP_VERILOG"
+fi
