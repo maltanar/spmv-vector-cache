@@ -14,7 +14,7 @@ HWSpMVFactory::~HWSpMVFactory() {
 	// TODO Auto-generated destructor stub
 }
 
-SpMV* HWSpMVFactory::make(unsigned int aBase, unsigned int aReset,
+HardwareSpMV* HWSpMVFactory::make(unsigned int aBase, unsigned int aReset,
 		SparseMatrix * A, SpMVData *x, SpMVData *y) {
 	unsigned int sign = *(volatile unsigned int *) aBase;
 

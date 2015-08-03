@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string.h>
 #include <string>
+#include <vector>
 #include "xil_cache.h"
 #include "SparseMatrix.h"
 #include "SoftwareSpMV.h"
@@ -43,6 +44,14 @@ void loadSparseMatrixFromSDCard() {
 	loadSparseMatrixFromSDCard(name);
 }
 
+void printResults(HardwareSpMV * spmv, vector<string> keys) {
+	for(vector<string>::iterator it = keys.begin(); it != keys.end(); ++it) {
+		if(*it == "matrix") cout << loadedMatrixName << ", ";
+		else cout << spmv->statInt(*it) << ", ";
+	}
+	cout << endl;
+}
+
 int main(int argc, char *argv[]) {
 	loadedMatrixName = "";
 	Xil_DCacheDisable();
@@ -58,7 +67,7 @@ int main(int argc, char *argv[]) {
 		loadSparseMatrixFromSDCard();
 
 		SparseMatrix * A = SparseMatrix::fromMemory(matrixMetaBase);
-
+		A->setName(loadedMatrixName);
 		A->printSummary();
 
 		SpMVData *x = (SpMVData *) malloc_aligned(64,
@@ -75,26 +84,24 @@ int main(int argc, char *argv[]) {
 
 		cout << "Signature: " << hex << *(volatile unsigned int *)accBase << dec << endl;
 
-		SpMV * spmv = HWSpMVFactory::make(accBase, resBase, A, x, y);
+		HardwareSpMV * spmv = HWSpMVFactory::make(accBase, resBase, A, x, y);
 		SoftwareSpMV check(A, x);
 
 		spmv->exec();
 		check.exec();
 
-		SpMVData * goldenY = check.getY();
-		int res = memcmp(goldenY, y, sizeof(SpMVData) * A->getRows());
+		spmv->compareGolden(check.getY());
 
-		cout << "Memcmp result = " << res << endl;
+		vector<string> keys;
+		keys.push_back("matrix");
+		keys.push_back("rows");
+		keys.push_back("cols");
+		keys.push_back("nz");
+		keys.push_back("totalCycles");
+		keys.push_back("activeCycles");
 
-		if (res != 0) {
-			unsigned int diffs = 0;
-			for (SpMVIndex i = 0; i < A->getRows(); i++) {
-				if (y[i] != goldenY[i])
-					diffs++;
-			}
-			cout << "A total of " << diffs << " result elements are different."
-					<< endl;
-		}
+		printResults(spmv, keys);
+
 	}
 	unmount(); // unmount the sd card
 

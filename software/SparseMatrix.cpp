@@ -14,6 +14,7 @@ SparseMatrix::~SparseMatrix() {
 
 void SparseMatrix::printSummary() {
 	cout << "Matrix summary" << endl;
+	cout << "name = " << m_name << endl;
 	cout << "#rows = " << m_rows << endl;
 	cout << "#cols = " << m_cols << endl;
 	cout << "#nz = " << m_nz << endl;

@@ -1,10 +1,10 @@
 #ifndef HARDWARESPMVNEWCACHE_H_
 #define HARDWARESPMVNEWCACHE_H_
 
-#include "SpMV.h"
+#include "HardwareSpMV.h"
 #include "SpMVAcceleratorNewCacheDriver.hpp"
 
-class HardwareSpMVNewCache: public SpMV {
+class HardwareSpMVNewCache: public HardwareSpMV {
 public:
 	HardwareSpMVNewCache(unsigned int aBase, unsigned int aReset,
 			SparseMatrix * A, SpMVData *x, SpMVData *y);
@@ -14,13 +14,11 @@ public:
 	void printAllFIFOLevels();
 	void printAllStatistics();
 
-protected:
-	volatile unsigned int * m_accelBase;
-	volatile unsigned int * m_resetBase;
+	virtual unsigned int statInt(std::string name);
 
+protected:
 	SpMVAcceleratorNewCacheDriver * m_acc;
 
-	void resetAccelerator();
 	void setupRegs();
 
 	// helpers for reading status

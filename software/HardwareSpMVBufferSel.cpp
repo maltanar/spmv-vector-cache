@@ -3,25 +3,9 @@
 #include <iostream>
 using namespace std;
 
-#define isAligned(x) (assert((unsigned int)x % 64 == 0))
-
-void HardwareSpMVBufferSel::resetAccelerator() {
-	*m_resetBase = 1;
-	*m_resetBase = 0;
-}
-
 HardwareSpMVBufferSel::HardwareSpMVBufferSel(unsigned int aBase,
 		unsigned int aReset, SparseMatrix * A, SpMVData *x, SpMVData *y) :
-		SpMV(A, x, y) {
-	// make sure all pointers are aligned
-	isAligned((unsigned int ) A->getIndPtrs());
-	isAligned((unsigned int ) A->getInds());
-	isAligned((unsigned int ) A->getNzData());
-	isAligned((unsigned int ) x);
-	isAligned((unsigned int ) y);
-
-	m_accelBase = (volatile unsigned int *) aBase;
-	m_resetBase = (volatile unsigned int *) aReset;
+		HardwareSpMV(aBase, aReset, A, x, y) {
 	m_acc = new SpMVAcceleratorBufferSelDriver(m_accelBase);
 
 	cout << "# OCM words: " << m_acc->ocmWords() << endl;

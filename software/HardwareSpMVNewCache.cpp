@@ -1,38 +1,24 @@
 #include "HardwareSpMVNewCache.h"
-#include <assert.h>
 #include <iostream>
 #include <string.h>
 using namespace std;
 
-#define isAligned(x) (assert((unsigned int)x % 64 == 0))
-
-void HardwareSpMVNewCache::resetAccelerator() {
-	*m_resetBase = 1;
-	*m_resetBase = 0;
-}
+const char * stateNames[] = { "sActive ", "sFill ", "sFlush ", "sDone ",
+			"sReadMiss1 ", "sReadMiss2 ", "sReadMiss3" };
 
 HardwareSpMVNewCache::HardwareSpMVNewCache(unsigned int aBase,
 		unsigned int aReset, SparseMatrix * A, SpMVData *x, SpMVData *y) :
-		SpMV(A, x, y) {
-	// make sure all pointers are aligned
-	isAligned((unsigned int ) A->getIndPtrs());
-	isAligned((unsigned int ) A->getInds());
-	isAligned((unsigned int ) A->getNzData());
-	isAligned((unsigned int ) x);
-	isAligned((unsigned int ) y);
-
-	m_accelBase = (volatile unsigned int *) aBase;
-	m_resetBase = (volatile unsigned int *) aReset;
+		HardwareSpMV(aBase, aReset, A, x, y) {
 	m_acc = new SpMVAcceleratorNewCacheDriver(m_accelBase);
 
-	cout << "# cachelines: " << m_acc->ocmWords() << endl;
-	cout << "Issue window: " << m_acc->issueWindow() << endl;
+	//cout << "# cachelines: " << m_acc->ocmWords() << endl;
+	//cout << "Issue window: " << m_acc->issueWindow() << endl;
 
 	m_totalCycles = 0;
 	m_activeCycles = 0;
-  m_readMisses = 0;
-  m_conflictMisses = 0;
-  memset(m_stateCounts, 0, PROFILER_STATES*4);
+	m_readMisses = 0;
+	m_conflictMisses = 0;
+	memset(m_stateCounts, 0, PROFILER_STATES * 4);
 }
 
 HardwareSpMVNewCache::~HardwareSpMVNewCache() {
@@ -142,26 +128,40 @@ void HardwareSpMVNewCache::printAllFIFOLevels() {
 	cout << "InpVec: " << getFIFOLevel(fifoInpVec) << endl;
 }
 
+unsigned int HardwareSpMVNewCache::statInt(std::string name) {
+	if(name == "totalCycles") return m_totalCycles;
+	else if (name == "activeCycles") return m_activeCycles;
+	else if (name == "readMisses") return m_readMisses;
+	else if (name == "conflictMisses") return m_conflictMisses;
+	else {
+		for (unsigned int i = 0; i < PROFILER_STATES; i++) {
+			if(name == stateNames[i]) return m_stateCounts[i];
+		}
+	}
+	// call superclass fxn if key not found
+	return HardwareSpMV::statInt(name);
+}
+
 void HardwareSpMVNewCache::updateStatistics() {
 	m_totalCycles = m_acc->bwMon_totalCycles();
 	m_activeCycles = m_acc->bwMon_activeCycles();
 
 	m_readMisses = m_acc->readMissCount();
-  m_conflictMisses = m_acc->conflictMissCount();
-  for(unsigned int i = 0; i < PROFILER_STATES; i++) {
-    m_acc->profileSel(i);
-    m_stateCounts[i] = m_acc->profileCount();
-  }
+	m_conflictMisses = m_acc->conflictMissCount();
+	for (unsigned int i = 0; i < PROFILER_STATES; i++) {
+		m_acc->profileSel(i);
+		m_stateCounts[i] = m_acc->profileCount();
+	}
 }
 
 void HardwareSpMVNewCache::printAllStatistics() {
-  cout << "Read misses: " << m_readMisses << endl;
-  cout << "Conflict misses: " << m_conflictMisses << endl;
-  
-  const char * stateNames[] = {"sActive ", "sFill ", "sFlush ", "sDone ", "sReadMiss1 ", "sReadMiss2 ", "sReadMiss3"};
-  for(unsigned int i = 0; i < PROFILER_STATES; i++) {
-    cout << "Cache state = " << stateNames[i] << " = " << m_stateCounts[i] << endl;
-  }
+	cout << "Read misses: " << m_readMisses << endl;
+	cout << "Conflict misses: " << m_conflictMisses << endl;
+
+	for (unsigned int i = 0; i < PROFILER_STATES; i++) {
+		cout << "Cache state = " << stateNames[i] << " = " << m_stateCounts[i]
+				<< endl;
+	}
 
 	cout << "Active cycles: " << m_activeCycles << endl;
 	cout << "Total cycles: " << m_totalCycles << endl;

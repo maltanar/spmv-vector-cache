@@ -1,10 +1,10 @@
 #ifndef HARDWARESPMVBUFFERSEL_H_
 #define HARDWARESPMVBUFFERSEL_H_
 
-#include "SpMV.h"
+#include "HardwareSpMV.h"
 #include "SpMVAcceleratorBufferSelDriver.hpp"
 
-class HardwareSpMVBufferSel: public SpMV {
+class HardwareSpMVBufferSel: public HardwareSpMV {
 public:
 	HardwareSpMVBufferSel(unsigned int aBase, unsigned int aReset,
 			SparseMatrix * A, SpMVData *x, SpMVData *y);
@@ -15,12 +15,8 @@ public:
 	void printAllStatistics();
 
 protected:
-	volatile unsigned int * m_accelBase;
-	volatile unsigned int * m_resetBase;
-
 	SpMVAcceleratorBufferSelDriver * m_acc;
 
-	void resetAccelerator();
 	void setupRegs();
 
 	// helpers for reading status

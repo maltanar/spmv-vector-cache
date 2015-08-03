@@ -2,10 +2,10 @@
 #ifndef HARDWARESPMVBUFFERALL_H_
 #define HARDWARESPMVBUFFERALL_H_
 
-#include "SpMV.h"
+#include "HardwareSpMV.h"
 #include "SpMVAcceleratorBufferAllDriver.hpp"
 
-class HardwareSpMVBufferAll: public SpMV {
+class HardwareSpMVBufferAll: public HardwareSpMV {
 public:
 	HardwareSpMVBufferAll(unsigned int aBase, unsigned int aReset, SparseMatrix * A, SpMVData *x, SpMVData *y);
 	virtual ~HardwareSpMVBufferAll();
@@ -14,12 +14,8 @@ public:
 	void printAllFIFOLevels();
 
 protected:
-	volatile unsigned int * m_accelBase;
-	volatile unsigned int * m_resetBase;
-
 	SpMVAcceleratorBufferAllDriver * m_acc;
 
-	void resetAccelerator();
 	void setupRegs();
 
 	// helpers for reading status

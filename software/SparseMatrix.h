@@ -1,6 +1,7 @@
 #ifndef SPARSEMATRIX_H_
 #define SPARSEMATRIX_H_
 
+#include <string>
 typedef unsigned int SpMVIndex;
 typedef double SpMVData;
 
@@ -21,6 +22,9 @@ public:
 
 	void printSummary();
 	bool isSquare();
+
+	void setName(std::string name) {m_name = name;};
+	std::string getName() {return m_name;};
 
 	static SparseMatrix* fromMemory(unsigned int metaDataBase);
 
@@ -55,6 +59,7 @@ protected:
 	SpMVIndex * m_indPtrs;
 	SpMVIndex * m_inds;
 	SpMVData * m_nzData;
+	std::string m_name;
 };
 
 #endif /* SPARSEMATRIX_H_ */
