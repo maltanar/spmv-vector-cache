@@ -8,33 +8,13 @@
 #include "malloc_aligned.h"
 #include "sdcard.h"
 #include "devcfg.h"
+#include "HWSpMVFactory.h"
 
 using namespace std;
 
 unsigned int matrixMetaBase = 0x08000100;
 unsigned int accBase = 0x40000000;
 unsigned int resBase = 0x43c00000;
-
-#define HWSPMV_NEWCACHE
-
-// use compile-time defines to decide which type of HW SpMV to use
-#if defined(HWSPMV_BUFFERALL)
-#include "HardwareSpMV.h"
-#define HWSPMV	HardwareSPMV
-static const char * hwSpMVIDString = "BufferAll";
-#elif defined(HWSPMV_BUFFERNONE)
-#include "HardwareSpMVBufferNone.h"
-#define HWSPMV HardwareSpMVBufferNone
-static const char * hwSpMVIDString = "BufferNone";
-#elif defined(HWSPMV_BUFFERSEL)
-#include "HardwareSpMVBufferSel.h"
-#define HWSPMV HardwareSpMVBufferSel
-static const char * hwSpMVIDString = "BufferSel";
-#elif defined(HWSPMV_NEWCACHE)
-#include "HardwareSpMVNewCache.h"
-#define HWSPMV HardwareSpMVNewCache
-static const char * hwSpMVIDString = "NewCache";
-#endif
 
 static string loadedMatrixName;
 
@@ -69,6 +49,7 @@ int main(int argc, char *argv[]) {
 	mount();	// mount the sd card
 
 	//selectBitfile();
+	string hwSpMVIDString = HWSpMVFactory::name(accBase);
 
 	cout << "SpMVAccel-" << hwSpMVIDString << endl;
 	cout << "=====================================" << endl;
@@ -94,7 +75,7 @@ int main(int argc, char *argv[]) {
 
 		cout << "Signature: " << hex << *(volatile unsigned int *)accBase << dec << endl;
 
-		SpMV * spmv = new HWSPMV(accBase, resBase, A, x, y);
+		SpMV * spmv = HWSpMVFactory::make(accBase, resBase, A, x, y);
 		SoftwareSpMV check(A, x);
 
 		spmv->exec();

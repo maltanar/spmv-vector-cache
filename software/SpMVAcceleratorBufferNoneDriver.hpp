@@ -3,8 +3,9 @@
 #include <assert.h>
 class SpMVAcceleratorBufferNoneDriver {
 public:
+ static unsigned int expSignature() {return 0x5255f3bd;};
  SpMVAcceleratorBufferNoneDriver(volatile unsigned int * baseAddr) {
-  m_baseAddr = baseAddr; assert(signature() == m_signature);};
+  m_baseAddr = baseAddr; assert(signature() == expSignature());};
  // read+write register: startRegular index: 10
  void startRegular(unsigned int v) {m_baseAddr[10] = v;};
  unsigned int startRegular() {return m_baseAddr[10];};
@@ -77,6 +78,5 @@ public:
 
 protected:
  volatile unsigned int * m_baseAddr;
- const static unsigned int m_signature = 0x5255f3bd;
 };
 #endif
