@@ -12,7 +12,7 @@ class BaseWrapperParams() extends AXIAccelWrapperParams(
   numRegs = 32,
   numMemPorts = 2)
 
-class SpMVAccelWrapperParams() extends BaseWrapperParams() {
+class SpMVAccelWrapperParams(arg: List[String] = List()) extends BaseWrapperParams() {
   // bitwidths for SpMV
   val opWidth: Int = 64
   val ptrWidth: Int = 32
@@ -32,13 +32,24 @@ class SpMVAccelWrapperParams() extends BaseWrapperParams() {
   //val makeMul: () => SemiringOp = {() => new StagedUIntOp(opWidth, 1, (a,b)=>a*b)}
   val makeAdd: () => SemiringOp = {() => new DPAdder(4)}
   val makeMul: () => SemiringOp = {() => new DPMultiplier(4)}
-  // ============= <parameters for BufferNone> ===============
+
+  lazy val suffix: String = {
+    ocmDepth.toString + "-" + issueWindow.toString
+  }
+
+  // try to find given key in args, return defVal otherwise
+  def matchInt(key: String, defVal: Int): Int = {
+    val keyStr: String = "--" + key
+    for(p <- arg.sliding(2)) {
+      if (p(0) == keyStr) { return p(1).toInt}
+    }
+    return defVal
+  }
   // how many simultaneously threads in flight to allow
-  val issueWindow = 6
-  // ============= <parameters for BufferAll&Cache> ===============
+  val issueWindow = matchInt("issueWindow", 6)
   // OCM parameters -- TODO separate into own trait/class?
   // number of contexts in context storage
-  val ocmDepth = 1024
+  val ocmDepth = matchInt("ocmDepth", 1024)
   // generate slightly different hardware depending on the backend:
   // - for Verilog, generate wrapper blackboxes for premade IP
   // - for everything else, generate Chisel-built components
