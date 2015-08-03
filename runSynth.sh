@@ -2,11 +2,12 @@
 
 PRJ_NAME=$1
 
+BITFILES="/home/maltanar/sandbox/spmv-vector-cache/bitfiles"
 PRJS_ROOT="/home/maltanar/sandbox/spmv-vector-cache/proj"
 PRJ_ROOT="$PRJS_ROOT/$PRJ_NAME"
 UTILS_ROOT="$PRJS_ROOT/utils"
 
-vivado -mode batch -source "$UTILS_ROOT/blockingSynth.tcl" -tclargs "$PRJ_ROOT/sys/$PRJ_NAME.xpr" "$PRJ_ROOT/$PRJ_NAME.bit"
+vivado -mode batch -source "$UTILS_ROOT/blockingSynth.tcl" -tclargs "$PRJ_ROOT/sys/$PRJ_NAME.xpr" "$BITFILES/$PRJ_NAME.bit"
 
 # use this command to generate bitstreams for loading directly from the SD card:
 
