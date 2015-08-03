@@ -1,9 +1,12 @@
+#include <iostream>
+#include <assert.h>
 #include "HWSpMVFactory.h"
-
 #include "HardwareSpMVBufferAll.h"
 #include "HardwareSpMVBufferNone.h"
 #include "HardwareSpMVBufferSel.h"
 #include "HardwareSpMVNewCache.h"
+
+using namespace std;
 
 HWSpMVFactory::HWSpMVFactory() {
 	// TODO Auto-generated constructor stub
@@ -43,6 +46,8 @@ std::string HWSpMVFactory::name(unsigned int aBase) {
 	} else if (sign == SpMVAcceleratorBufferAllDriver::expSignature()) {
 		return "BufferAll";
 	} else {
+		cout << "Accelerator signature unrecognized! " << hex << sign << dec << endl;
+		assert(0);
 		return "<undefined>";
 	}
 }

@@ -29,13 +29,27 @@ void HardwareSpMV::resetAccelerator() {
 }
 
 void HardwareSpMV::compareGolden(SpMVData* golden) {
-	m_diffFromGolden = memcmp(golden, m_y, m_A->getRows()*sizeof(SpMVData));
+	m_diffFromGolden = memcmp(golden, m_y, m_A->getRows() * sizeof(SpMVData));
 }
 
 unsigned int HardwareSpMV::statInt(std::string name) {
-	if(name == "diffFromGolden") return m_diffFromGolden;
-	else if(name == "rows") return m_A->getRows();
-	else if(name == "cols") return m_A->getCols();
-	else if(name == "nz") return m_A->getNz();
-	else return 0;
+	if (name == "diffFromGolden")
+		return m_diffFromGolden;
+	else if (name == "rows")
+		return m_A->getRows();
+	else if (name == "cols")
+		return m_A->getCols();
+	else if (name == "nz")
+		return m_A->getNz();
+	else
+		return 0;
+}
+
+std::vector<std::string> HardwareSpMV::statKeys() {
+	std::vector<std::string> keys;
+	keys.push_back("diffFromGolden");
+	keys.push_back("rows");
+	keys.push_back("cols");
+	keys.push_back("nz");
+	return keys;
 }

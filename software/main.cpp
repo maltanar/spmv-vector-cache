@@ -44,13 +44,42 @@ void loadSparseMatrixFromSDCard() {
 	loadSparseMatrixFromSDCard(name);
 }
 
-void printResults(HardwareSpMV * spmv, vector<string> keys) {
-	for(vector<string>::iterator it = keys.begin(); it != keys.end(); ++it) {
-		if(*it == "matrix") cout << loadedMatrixName << ", ";
-		else cout << spmv->statInt(*it) << ", ";
+void printKeys(vector<string> keys) {
+	for (vector<string>::iterator it = keys.begin(); it != keys.end(); ++it) {
+		cout << *it << ",";
 	}
 	cout << endl;
 }
+
+void printResults(HardwareSpMV * spmv, vector<string> keys) {
+	for (vector<string>::iterator it = keys.begin(); it != keys.end(); ++it) {
+		if (*it == "matrix")
+			cout << loadedMatrixName << ", ";
+		else if (*it == "accType")
+			cout << HWSpMVFactory::name(accBase) << ", ";
+		else
+			cout << spmv->statInt(*it) << ", ";
+	}
+	cout << endl;
+}
+
+/*
+ S. Williams matrix suite:
+cant
+conf5_4-8x8-05
+consph
+cop20k_A
+mac_econ_fwd500
+mc2depi
+pdb1HYS
+pwtk
+rma10
+scircuit
+shipsec1
+webbase-1M
+q
+
+ */
 
 int main(int argc, char *argv[]) {
 	loadedMatrixName = "";
@@ -63,12 +92,28 @@ int main(int argc, char *argv[]) {
 	cout << "SpMVAccel-" << hwSpMVIDString << endl;
 	cout << "=====================================" << endl;
 
-	while (1) {
-		loadSparseMatrixFromSDCard();
+	vector<string> ms;
+	string m;
+
+	cout << "Enter list of matrices, q to finalize: " << endl;
+	cin >> m;
+	while (m != "q") {
+		ms.push_back(m);
+		cin >> m;
+	}
+
+	cout << "Benchmarking " << ms.size() << " matrices..." << endl;
+	cout << "=============================================================" << endl;
+
+	bool keysBuilt = false;
+	vector<string> keys;
+
+	for (vector<string>::iterator it = ms.begin(); it != ms.end(); ++it) {
+		loadSparseMatrixFromSDCard(*it);
 
 		SparseMatrix * A = SparseMatrix::fromMemory(matrixMetaBase);
 		A->setName(loadedMatrixName);
-		A->printSummary();
+		//A->printSummary();
 
 		SpMVData *x = (SpMVData *) malloc_aligned(64,
 				sizeof(SpMVData) * A->getCols());
@@ -82,29 +127,34 @@ int main(int argc, char *argv[]) {
 			y[i] = (SpMVData) 0;
 		}
 
-		cout << "Signature: " << hex << *(volatile unsigned int *)accBase << dec << endl;
-
 		HardwareSpMV * spmv = HWSpMVFactory::make(accBase, resBase, A, x, y);
-		SoftwareSpMV check(A, x);
+		// generate + print stat keys on the first run
+		if(!keysBuilt) {
+			keys = spmv->statKeys();
+			keys.push_back("accType");
+			keys.push_back("matrix");
+
+			printKeys(keys);
+			keysBuilt = true;
+		}
+
+		SoftwareSpMV * check = new SoftwareSpMV(A, x);
 
 		spmv->exec();
-		check.exec();
+		check->exec();
 
-		spmv->compareGolden(check.getY());
-
-		vector<string> keys;
-		keys.push_back("matrix");
-		keys.push_back("rows");
-		keys.push_back("cols");
-		keys.push_back("nz");
-		keys.push_back("totalCycles");
-		keys.push_back("activeCycles");
-		keys.push_back("ocmDepth");
-		keys.push_back("issueWindow");
+		spmv->compareGolden(check->getY());
 
 		printResults(spmv, keys);
 
+		delete spmv;
+		delete check;
+		free_aligned(x);
+		free_aligned(y);
+
 	}
+	cout << "=============================================================" << endl;
+	cout << "Benchmarking complete" << endl;
 	unmount(); // unmount the sd card
 
 	return 0;

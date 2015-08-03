@@ -3,8 +3,8 @@
 #include <string.h>
 using namespace std;
 
-const char * stateNames[] = { "sActive ", "sFill ", "sFlush ", "sDone ",
-			"sReadMiss1 ", "sReadMiss2 ", "sReadMiss3" };
+const char * stateNames[] = { "sActive", "sFill", "sFlush", "sDone",
+			"sReadMiss1", "sReadMiss2", "sReadMiss3" };
 
 HardwareSpMVNewCache::HardwareSpMVNewCache(unsigned int aBase,
 		unsigned int aReset, SparseMatrix * A, SpMVData *x, SpMVData *y) :
@@ -83,7 +83,7 @@ bool HardwareSpMVNewCache::exec() {
 	regular();
 	write();
 
-	printAllStatistics();
+	//printAllStatistics();
 
 	return false;
 }
@@ -135,6 +135,7 @@ unsigned int HardwareSpMVNewCache::statInt(std::string name) {
 	else if (name == "conflictMisses") return m_conflictMisses;
 	else if (name == "ocmDepth") return m_acc->ocmWords();
 	else if (name == "issueWindow") return m_acc->issueWindow();
+	else if (name == "hazardStalls") return m_acc->hazardStalls();
 	else {
 		for (unsigned int i = 0; i < PROFILER_STATES; i++) {
 			if(name == stateNames[i]) return m_stateCounts[i];
@@ -169,4 +170,18 @@ void HardwareSpMVNewCache::printAllStatistics() {
 	cout << "Total cycles: " << m_totalCycles << endl;
 	float act = (float) m_activeCycles / (float) m_totalCycles;
 	cout << "Active/Total = " << act << endl;
+}
+
+std::vector<std::string> HardwareSpMVNewCache::statKeys() {
+	vector<string> keys = HardwareSpMV::statKeys();
+	for (unsigned int i = 0; i < PROFILER_STATES; i++)
+		keys.push_back(stateNames[i]);
+	keys.push_back("totalCycles");
+	keys.push_back("activeCycles");
+	keys.push_back("readMisses");
+	keys.push_back("conflictMisses");
+	keys.push_back("ocmDepth");
+	keys.push_back("issueWindow");
+	keys.push_back("hazardStalls");
+	return keys;
 }

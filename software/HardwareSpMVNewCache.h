@@ -15,6 +15,7 @@ public:
 	void printAllStatistics();
 
 	virtual unsigned int statInt(std::string name);
+	virtual std::vector<std::string> statKeys();
 
 protected:
 	SpMVAcceleratorNewCacheDriver * m_acc;

@@ -2,6 +2,7 @@
 #define HARDWARESPMV_H_
 
 #include <string>
+#include <vector>
 #include "SpMV.h"
 
 class HardwareSpMV: public SpMV {
@@ -14,6 +15,7 @@ public:
 	void compareGolden(SpMVData * golden);
 
 	virtual unsigned int statInt(std::string name);
+	virtual std::vector<std::string> statKeys();
 
 protected:
 	volatile unsigned int * m_accelBase;
