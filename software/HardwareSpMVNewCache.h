@@ -58,11 +58,12 @@ protected:
 	void updateStatistics();
 	unsigned int m_totalCycles;
 	unsigned int m_activeCycles;
-  unsigned int m_readMisses;
-  unsigned int m_conflictMisses;
-  
+	unsigned int m_readMisses;
+	unsigned int m_conflictMisses;
+	unsigned int m_hazardStalls;
+
 #define PROFILER_STATES 7
-  unsigned int m_stateCounts[PROFILER_STATES];
-  
+	unsigned int m_stateCounts[PROFILER_STATES];
+
 };
 #endif /* HARDWARESPMVBUFFERSEL_H_ */

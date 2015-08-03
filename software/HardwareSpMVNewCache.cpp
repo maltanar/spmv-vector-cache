@@ -18,6 +18,7 @@ HardwareSpMVNewCache::HardwareSpMVNewCache(unsigned int aBase,
 	m_activeCycles = 0;
 	m_readMisses = 0;
 	m_conflictMisses = 0;
+	m_hazardStalls = 0;
 	memset(m_stateCounts, 0, PROFILER_STATES * 4);
 }
 
@@ -135,7 +136,7 @@ unsigned int HardwareSpMVNewCache::statInt(std::string name) {
 	else if (name == "conflictMisses") return m_conflictMisses;
 	else if (name == "ocmDepth") return m_acc->ocmWords();
 	else if (name == "issueWindow") return m_acc->issueWindow();
-	else if (name == "hazardStalls") return m_acc->hazardStalls();
+	else if (name == "hazardStalls") return m_hazardStalls;
 	else {
 		for (unsigned int i = 0; i < PROFILER_STATES; i++) {
 			if(name == stateNames[i]) return m_stateCounts[i];
@@ -148,7 +149,7 @@ unsigned int HardwareSpMVNewCache::statInt(std::string name) {
 void HardwareSpMVNewCache::updateStatistics() {
 	m_totalCycles = m_acc->bwMon_totalCycles();
 	m_activeCycles = m_acc->bwMon_activeCycles();
-
+	m_hazardStalls = m_acc->hazardStalls();
 	m_readMisses = m_acc->readMissCount();
 	m_conflictMisses = m_acc->conflictMissCount();
 	for (unsigned int i = 0; i < PROFILER_STATES; i++) {
