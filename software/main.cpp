@@ -99,6 +99,8 @@ int main(int argc, char *argv[]) {
 		keys.push_back("nz");
 		keys.push_back("totalCycles");
 		keys.push_back("activeCycles");
+		keys.push_back("ocmDepth");
+		keys.push_back("issueWindow");
 
 		printResults(spmv, keys);
 

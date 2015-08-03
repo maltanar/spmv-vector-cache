@@ -133,6 +133,8 @@ unsigned int HardwareSpMVNewCache::statInt(std::string name) {
 	else if (name == "activeCycles") return m_activeCycles;
 	else if (name == "readMisses") return m_readMisses;
 	else if (name == "conflictMisses") return m_conflictMisses;
+	else if (name == "ocmDepth") return m_acc->ocmWords();
+	else if (name == "issueWindow") return m_acc->issueWindow();
 	else {
 		for (unsigned int i = 0; i < PROFILER_STATES; i++) {
 			if(name == stateNames[i]) return m_stateCounts[i];

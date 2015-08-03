@@ -31,6 +31,7 @@ class SpMVFrontendNewCache(val p: SpMVAccelWrapperParams) extends Module {
     val readMissCount = UInt(OUTPUT, 32)
     val writeMissCount = UInt(OUTPUT, 32)
     val conflictMissCount = UInt(OUTPUT, 32)
+    val hazardStalls = UInt(OUTPUT, 32)
     val cacheState = UInt(OUTPUT, 32)
 
     // value inputs
@@ -48,7 +49,6 @@ class SpMVFrontendNewCache(val p: SpMVAccelWrapperParams) extends Module {
   }
 
   // useful functions for working with stream forks and joins
-  val routeFxn = {x: OperandWithID => Mux(x.id < UInt(p.ocmDepth), UInt(0), UInt(1))}
   val forkAll = {x: OperandWithID => x}
   val forkShadow = {x: OperandWithID => OperandWithID(UInt(0, width=1), x.id)}
   val forkId = {x: OperandWithID => x.id}
@@ -164,6 +164,5 @@ class SpMVFrontendNewCache(val p: SpMVAccelWrapperParams) extends Module {
   // use op count to drive the doneRegular signal
   io.doneRegular := (regOpCount === io.numNZ)
 
-  // TODO expose cache counters to top level
-  // TODO emit statistics (hazards, etc)
+  io.hazardStalls := Counter32Bit(shadow.hazard)
 }
