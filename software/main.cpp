@@ -16,6 +16,7 @@ using namespace std;
 unsigned int matrixMetaBase = 0x08000100;
 unsigned int accBase = 0x40000000;
 unsigned int resBase = 0x43c00000;
+unsigned int ocmBase = 0x00000040;
 
 static string loadedMatrixName;
 
@@ -64,31 +65,42 @@ void printResults(HardwareSpMV * spmv, vector<string> keys) {
 }
 
 /*
-S. Williams matrix suite:
-cant
-conf5_4-8x8-05
-consph
-cop20k_A
-mac_econ_fwd500
-mc2depi
-pdb1HYS
-pwtk
-rma10
-scircuit
-shipsec1
-webbase-1M
-q
+ S. Williams matrix suite:
+ cant
+ conf5_4-8x8-05
+ consph
+ cop20k_A
+ mac_econ_fwd500
+ mc2depi
+ pdb1HYS
+ pwtk
+ rma10
+ scircuit
+ shipsec1
+ webbase-1M
+ q
+
+
+ other matrices (small row/col count, < 32K):
+ li
+ rim
+ bcsstm36
+ c-52
+ q
  */
 
 int main(int argc, char *argv[]) {
 	loadedMatrixName = "";
+	const bool yInOCM = false;
 	Xil_DCacheDisable();
 	mount();	// mount the sd card
 
 	vector<string> confs;
 	string conf;
 
-	cout << "Enter list of configurations (bitfiles), s to keep current, q to finalize: " << endl;
+	cout
+			<< "Enter list of configurations (bitfiles), s to keep current, q to finalize: "
+			<< endl;
 	cin >> conf;
 	while (conf != "q") {
 		confs.push_back(conf);
@@ -132,8 +144,10 @@ int main(int argc, char *argv[]) {
 
 			SpMVData *x = (SpMVData *) malloc_aligned(64,
 					sizeof(SpMVData) * A->getCols());
-			SpMVData *y = (SpMVData *) malloc_aligned(64,
-					sizeof(SpMVData) * A->getRows());
+			SpMVData *y = (SpMVData *) (
+					yInOCM ?
+							(void *) ocmBase :
+							malloc_aligned(64, sizeof(SpMVData) * A->getRows()));
 
 			for (SpMVIndex i = 0; i < A->getCols(); i++) {
 				x[i] = (SpMVData) 1;
@@ -166,7 +180,8 @@ int main(int argc, char *argv[]) {
 			delete spmv;
 			delete check;
 			free_aligned(x);
-			free_aligned(y);
+			if (!yInOCM)
+				free_aligned(y);
 		}
 	}
 
