@@ -64,7 +64,7 @@ void printResults(HardwareSpMV * spmv, vector<string> keys) {
 }
 
 /*
- S. Williams matrix suite:
+S. Williams matrix suite:
 cant
 conf5_4-8x8-05
 consph
@@ -78,7 +78,6 @@ scircuit
 shipsec1
 webbase-1M
 q
-
  */
 
 int main(int argc, char *argv[]) {
@@ -86,11 +85,22 @@ int main(int argc, char *argv[]) {
 	Xil_DCacheDisable();
 	mount();	// mount the sd card
 
-	//selectBitfile();
-	string hwSpMVIDString = HWSpMVFactory::name(accBase);
+	vector<string> confs;
+	string conf;
 
-	cout << "SpMVAccel-" << hwSpMVIDString << endl;
-	cout << "=====================================" << endl;
+	cout << "Enter list of configurations (bitfiles), s to keep current, q to finalize: " << endl;
+	cin >> conf;
+	while (conf != "q") {
+		confs.push_back(conf);
+		cin >> conf;
+	}
+
+	//selectBitfile();
+
+	//string hwSpMVIDString = HWSpMVFactory::name(accBase);
+
+	//cout << "SpMVAccel-" << hwSpMVIDString << endl;
+	//cout << "=====================================" << endl;
 
 	vector<string> ms;
 	string m;
@@ -102,58 +112,66 @@ int main(int argc, char *argv[]) {
 		cin >> m;
 	}
 
-	cout << "Benchmarking " << ms.size() << " matrices..." << endl;
-	cout << "=============================================================" << endl;
+	cout << "Benchmarking " << confs.size() << "x" << ms.size()
+			<< " confs x matrices..." << endl;
+	cout << "============================================================="
+			<< endl;
 
 	bool keysBuilt = false;
 	vector<string> keys;
 
-	for (vector<string>::iterator it = ms.begin(); it != ms.end(); ++it) {
-		loadSparseMatrixFromSDCard(*it);
+	for (vector<string>::iterator cf = confs.begin(); cf != confs.end(); ++cf) {
+		selectBitfile(*cf);
 
-		SparseMatrix * A = SparseMatrix::fromMemory(matrixMetaBase);
-		A->setName(loadedMatrixName);
-		//A->printSummary();
+		for (vector<string>::iterator it = ms.begin(); it != ms.end(); ++it) {
+			loadSparseMatrixFromSDCard(*it);
 
-		SpMVData *x = (SpMVData *) malloc_aligned(64,
-				sizeof(SpMVData) * A->getCols());
-		SpMVData *y = (SpMVData *) malloc_aligned(64,
-				sizeof(SpMVData) * A->getRows());
+			SparseMatrix * A = SparseMatrix::fromMemory(matrixMetaBase);
+			A->setName(loadedMatrixName);
+			//A->printSummary();
 
-		for (SpMVIndex i = 0; i < A->getCols(); i++) {
-			x[i] = (SpMVData) 1;
+			SpMVData *x = (SpMVData *) malloc_aligned(64,
+					sizeof(SpMVData) * A->getCols());
+			SpMVData *y = (SpMVData *) malloc_aligned(64,
+					sizeof(SpMVData) * A->getRows());
+
+			for (SpMVIndex i = 0; i < A->getCols(); i++) {
+				x[i] = (SpMVData) 1;
+			}
+			for (SpMVIndex i = 0; i < A->getRows(); i++) {
+				y[i] = (SpMVData) 0;
+			}
+
+			HardwareSpMV * spmv = HWSpMVFactory::make(accBase, resBase, A, x,
+					y);
+			// generate + print stat keys on the first run
+			if (!keysBuilt) {
+				keys = spmv->statKeys();
+				keys.push_back("accType");
+				keys.push_back("matrix");
+
+				printKeys(keys);
+				keysBuilt = true;
+			}
+
+			SoftwareSpMV * check = new SoftwareSpMV(A, x);
+
+			spmv->exec();
+			check->exec();
+
+			spmv->compareGolden(check->getY());
+
+			printResults(spmv, keys);
+
+			delete spmv;
+			delete check;
+			free_aligned(x);
+			free_aligned(y);
 		}
-		for (SpMVIndex i = 0; i < A->getRows(); i++) {
-			y[i] = (SpMVData) 0;
-		}
-
-		HardwareSpMV * spmv = HWSpMVFactory::make(accBase, resBase, A, x, y);
-		// generate + print stat keys on the first run
-		if(!keysBuilt) {
-			keys = spmv->statKeys();
-			keys.push_back("accType");
-			keys.push_back("matrix");
-
-			printKeys(keys);
-			keysBuilt = true;
-		}
-
-		SoftwareSpMV * check = new SoftwareSpMV(A, x);
-
-		spmv->exec();
-		check->exec();
-
-		spmv->compareGolden(check->getY());
-
-		printResults(spmv, keys);
-
-		delete spmv;
-		delete check;
-		free_aligned(x);
-		free_aligned(y);
-
 	}
-	cout << "=============================================================" << endl;
+
+	cout << "============================================================="
+			<< endl;
 	cout << "Benchmarking complete" << endl;
 	unmount(); // unmount the sd card
 

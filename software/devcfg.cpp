@@ -64,6 +64,7 @@ using namespace std;
 static XDcfg * cfg = 0;
 
 void selectBitfile(string fileName) {
+	if(fileName == "s") return;
 	string bfn = ("binfiles/" + fileName + ".bin");
 	//cout << "full path:" << bfn << endl;
 	unsigned int sz = getFileSize(bfn.c_str());
