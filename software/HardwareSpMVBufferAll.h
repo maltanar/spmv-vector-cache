@@ -1,4 +1,3 @@
-
 #ifndef HARDWARESPMVBUFFERALL_H_
 #define HARDWARESPMVBUFFERALL_H_
 
@@ -7,11 +6,15 @@
 
 class HardwareSpMVBufferAll: public HardwareSpMV {
 public:
-	HardwareSpMVBufferAll(unsigned int aBase, unsigned int aReset, SparseMatrix * A, SpMVData *x, SpMVData *y);
+	HardwareSpMVBufferAll(unsigned int aBase, unsigned int aReset,
+			SparseMatrix * A, SpMVData *x, SpMVData *y);
 	virtual ~HardwareSpMVBufferAll();
 
 	virtual bool exec();
 	void printAllFIFOLevels();
+
+	virtual unsigned int statInt(std::string name);
+	virtual std::vector<std::string> statKeys();
 
 protected:
 	SpMVAcceleratorBufferAllDriver * m_acc;
@@ -49,6 +52,12 @@ protected:
 		fifoOutVec = 5
 	} SpMVFIFONum;
 	volatile unsigned short getFIFOLevel(SpMVFIFONum num);
+
+	// statistics
+	void updateStatistics();
+	unsigned int m_totalCycles;
+	unsigned int m_activeCycles;
+	unsigned int m_hazardStalls;
 };
 
 #endif /* HARDWARESPMVBUFFERALL_H_ */

@@ -3,13 +3,13 @@
 #include <iostream>
 using namespace std;
 
-HardwareSpMVBufferAll::HardwareSpMVBufferAll(unsigned int aBase, unsigned int aReset,
-		SparseMatrix * A, SpMVData *x, SpMVData *y) :
+HardwareSpMVBufferAll::HardwareSpMVBufferAll(unsigned int aBase,
+		unsigned int aReset, SparseMatrix * A, SpMVData *x, SpMVData *y) :
 		HardwareSpMV(aBase, aReset, A, x, y) {
 	m_acc = new SpMVAcceleratorBufferAllDriver(m_accelBase);
 
 	// buffer-all: ensure all rows will fit within OCM
-	cout << "# OCM words: " << m_acc->ocmWords() << endl;
+	//cout << "# OCM words: " << m_acc->ocmWords() << endl;
 	assert(A->getRows() <= m_acc->ocmWords());
 }
 
@@ -34,6 +34,10 @@ void HardwareSpMVBufferAll::setupRegs() {
 	m_acc->thresInputVec(128);
 	m_acc->thresNZData(256);
 	m_acc->thresRowInd(256);
+
+	m_totalCycles = 0;
+	m_activeCycles = 0;
+	m_hazardStalls = 0;
 }
 
 void HardwareSpMVBufferAll::init() {
@@ -88,13 +92,7 @@ void HardwareSpMVBufferAll::regular() {
 			&& readFrontendStatus(frontendMaskDoneRegular)))
 		;
 
-	cout << "Hazard stalls: " << m_acc->hazardStalls() << endl;
-	cout << "Active cycles: " << m_acc->bwMon_activeCycles() << endl;
-	cout << "Total cycles: " << m_acc->bwMon_totalCycles() << endl;
-	float act = (float) (m_acc->bwMon_activeCycles())
-			/ (float) (m_acc->bwMon_totalCycles());
-	cout << "Active/Total = " << act << endl;
-	//printAllFIFOLevels();
+	updateStatistics();
 
 	m_acc->startRegular(0);
 }
@@ -124,4 +122,32 @@ void HardwareSpMVBufferAll::printAllFIFOLevels() {
 	cout << "RowInd: " << getFIFOLevel(fifoRowInd) << endl;
 	cout << "NZData: " << getFIFOLevel(fifoNZData) << endl;
 	cout << "InpVec: " << getFIFOLevel(fifoInpVec) << endl;
+}
+
+unsigned int HardwareSpMVBufferAll::statInt(std::string name) {
+	if (name == "totalCycles")
+		return m_totalCycles;
+	else if (name == "activeCycles")
+		return m_activeCycles;
+	else if (name == "ocmDepth")
+		return m_acc->ocmWords();
+	else if (name == "hazardStalls")
+		return m_hazardStalls;
+	else
+		return HardwareSpMV::statInt(name);
+}
+
+std::vector<std::string> HardwareSpMVBufferAll::statKeys() {
+	vector<string> keys = HardwareSpMV::statKeys();
+	keys.push_back("totalCycles");
+	keys.push_back("activeCycles");
+	keys.push_back("ocmDepth");
+	keys.push_back("hazardStalls");
+	return keys;
+}
+
+void HardwareSpMVBufferAll::updateStatistics() {
+	m_totalCycles = m_acc->bwMon_totalCycles();
+	m_activeCycles = m_acc->bwMon_activeCycles();
+	m_hazardStalls = m_acc->hazardStalls();
 }
