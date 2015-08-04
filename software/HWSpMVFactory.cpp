@@ -30,6 +30,9 @@ HardwareSpMV* HWSpMVFactory::make(unsigned int aBase, unsigned int aReset,
 	} else if (sign == SpMVAcceleratorBufferAllDriver::expSignature()) {
 		return new HardwareSpMVBufferAll(aBase, aReset, A, x, y);
 	} else {
+		cout << "Accelerator signature unrecognized! " << hex << sign << dec
+				<< endl;
+		assert(0);
 		return 0;
 	}
 }
@@ -46,7 +49,8 @@ std::string HWSpMVFactory::name(unsigned int aBase) {
 	} else if (sign == SpMVAcceleratorBufferAllDriver::expSignature()) {
 		return "BufferAll";
 	} else {
-		cout << "Accelerator signature unrecognized! " << hex << sign << dec << endl;
+		cout << "Accelerator signature unrecognized! " << hex << sign << dec
+				<< endl;
 		assert(0);
 		return "<undefined>";
 	}

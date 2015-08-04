@@ -1,4 +1,3 @@
-
 #ifndef HARDWARESPMVBUFFERNONE_H_
 #define HARDWARESPMVBUFFERNONE_H_
 
@@ -7,12 +6,16 @@
 
 class HardwareSpMVBufferNone: public HardwareSpMV {
 public:
-	HardwareSpMVBufferNone(unsigned int aBase, unsigned int aReset, SparseMatrix * A, SpMVData *x, SpMVData *y);
+	HardwareSpMVBufferNone(unsigned int aBase, unsigned int aReset,
+			SparseMatrix * A, SpMVData *x, SpMVData *y);
 	virtual ~HardwareSpMVBufferNone();
 
 	virtual bool exec();
 	void printAllFIFOLevels();
 	void printAllStatistics();
+
+	virtual unsigned int statInt(std::string name);
+	virtual std::vector<std::string> statKeys();
 
 protected:
 	SpMVAcceleratorBufferNoneDriver * m_acc;

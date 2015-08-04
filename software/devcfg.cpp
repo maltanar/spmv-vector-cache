@@ -58,35 +58,41 @@
 #define SLCR_UNLOCK_VAL	0xDF0D
 
 #include <iostream>
+#include <string>
 using namespace std;
 
 static XDcfg * cfg = 0;
+
+void selectBitfile(string fileName) {
+	string bfn = ("binfiles/" + fileName + ".bin");
+	//cout << "full path:" << bfn << endl;
+	unsigned int sz = getFileSize(bfn.c_str());
+	//cout << "reading bitfile from sd card, bytes: " << sz << endl;
+	void * bitfileMem = malloc_aligned(64, sz);
+	readFromSDCard(bfn.c_str(), (unsigned int) bitfileMem);
+	if (cfg == 0) {
+		//cout << "initializing xdcfg" << endl;
+		cfg = XDcfg_Initialize(XPAR_XDCFG_0_DEVICE_ID);
+	}
+
+	//cout << "attempting to upload bitstream" << endl;
+
+	int ret = XDcfg_TransferBitfile(cfg, (u32) bitfileMem, sz >> 2);
+
+	if (ret == XST_SUCCESS) {
+		//cout << "Success!" << endl;
+		}
+	else
+		cout << "Bitfile upload failed with code " << ret << endl;
+
+	free_aligned(bitfileMem);
+}
 
 void selectBitfile() {
 	cout << "enter bitfile name: " << endl;
 	string bfn;
 	cin >> bfn;
-	bfn = ("bitfiles/" + bfn + ".bin");
-	cout << "full path:" << bfn << endl;
-	unsigned int sz = getFileSize(bfn.c_str());
-	cout << "reading bitfile from sd card, bytes: " << sz << endl;
-	void * bitfileMem = malloc_aligned(64, sz);
-	readFromSDCard(bfn.c_str(), (unsigned int) bitfileMem);
-	if (cfg == 0) {
-		cout << "initializing xdcfg" << endl;
-		cfg = XDcfg_Initialize(XPAR_XDCFG_0_DEVICE_ID);
-	}
-
-	cout << "attempting to upload bitstream" << endl;
-
-	int ret = XDcfg_TransferBitfile(cfg, (u32) bitfileMem, sz >> 2);
-
-	if (ret == XST_SUCCESS)
-		cout << "Success!" << endl;
-	else
-		cout << "Failed with code " << ret << endl;
-
-	free_aligned(bitfileMem);
+	selectBitfile(bfn);
 }
 
 XDcfg *XDcfg_Initialize(u16 DeviceId) {

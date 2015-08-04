@@ -41,10 +41,11 @@
 #ifndef DEVCFG_H_
 #define DEVCFG_H_
 
-
+#include <string>
 #include "xdevcfg.h"
 
 void selectBitfile();
+void selectBitfile(std::string name);
 XDcfg *XDcfg_Initialize(u16 DeviceId);
 int XDcfg_TransferBitfile(XDcfg *Instance, u32 StartAddress, u32 WordLength);
 

@@ -8,7 +8,7 @@ HardwareSpMVBufferNone::HardwareSpMVBufferNone(unsigned int aBase,
 		HardwareSpMV(aBase, aReset, A, x, y) {
 	m_acc = new SpMVAcceleratorBufferNoneDriver(m_accelBase);
 
-	cout << "Issue window: " << m_acc->issueWindow() << endl;
+	//cout << "Issue window: " << m_acc->issueWindow() << endl;
 
 	m_totalCycles = 0;
 	m_activeCycles = 0;
@@ -52,7 +52,7 @@ bool HardwareSpMVBufferNone::exec() {
 	setupRegs();
 
 	regular();
-	printAllStatistics();
+	//printAllStatistics();
 
 	return false;
 }
@@ -112,4 +112,24 @@ void HardwareSpMVBufferNone::updateStatistics() {
 	m_activeCycles = m_acc->bwMon_activeCycles();
 	m_hazardStalls = m_acc->hazardStalls();
 	m_capacityStalls = m_acc->capacityStalls();
+}
+
+unsigned int HardwareSpMVBufferNone::statInt(std::string name) {
+	if(name == "totalCycles") return m_totalCycles;
+	else if (name == "activeCycles") return m_activeCycles;
+	else if (name == "capacityStalls") return m_capacityStalls;
+	else if (name == "issueWindow") return m_acc->issueWindow();
+	else if (name == "hazardStalls") return m_hazardStalls;
+	else return HardwareSpMV::statInt(name);
+}
+
+std::vector<std::string> HardwareSpMVBufferNone::statKeys() {
+	vector<string> keys = HardwareSpMV::statKeys();
+
+	keys.push_back("totalCycles");
+	keys.push_back("activeCycles");
+	keys.push_back("capacityStalls");
+	keys.push_back("issueWindow");
+	keys.push_back("hazardStalls");
+	return keys;
 }
