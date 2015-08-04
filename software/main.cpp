@@ -55,11 +55,11 @@ void printKeys(vector<string> keys) {
 void printResults(HardwareSpMV * spmv, vector<string> keys) {
 	for (vector<string>::iterator it = keys.begin(); it != keys.end(); ++it) {
 		if (*it == "matrix")
-			cout << loadedMatrixName << ", ";
+			cout << loadedMatrixName << ",";
 		else if (*it == "accType")
-			cout << HWSpMVFactory::name(accBase) << ", ";
+			cout << HWSpMVFactory::name(accBase) << ",";
 		else
-			cout << spmv->statInt(*it) << ", ";
+			cout << spmv->statInt(*it) << ",";
 	}
 	cout << endl;
 }
@@ -80,6 +80,13 @@ void printResults(HardwareSpMV * spmv, vector<string> keys) {
  webbase-1M
  q
 
+medium matrices (around 64K, useful for BufferAll testing)
+2D_54019_highK
+mark3jac140
+cant
+pdb1HYS
+conf5_4-8x8-05
+q
 
  other matrices (small row/col count, < 32K):
  li
