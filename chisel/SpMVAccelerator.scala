@@ -11,7 +11,7 @@ import java.io.{FileInputStream, DataInputStream}
 
 
 class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
-  override lazy val accelVersion: String = "alpha-4"
+  override lazy val accelVersion: String = "alpha-5"
 
   // plug unused register file elems / set defaults
   plugRegOuts()
@@ -50,9 +50,10 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
     val ocmWords = UInt(width = p.csrDataWidth)
     val fifoCountsCPRI = UInt(width = p.csrDataWidth)
     val fifoCountsNZIV = UInt(width = p.csrDataWidth)
-
+    val debug = UInt(width = p.csrDataWidth)
   }
   override lazy val regMap = manageRegIO(in, out)
+  out.debug := UInt(0)
 
   out.ocmWords := UInt(p.ocmDepth)
 

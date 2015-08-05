@@ -1,6 +1,7 @@
 #include "HardwareSpMVBufferNone.h"
 #include <assert.h>
 #include <iostream>
+#include "xil_cache.h"
 using namespace std;
 
 HardwareSpMVBufferNone::HardwareSpMVBufferNone(unsigned int aBase,
@@ -61,14 +62,39 @@ void HardwareSpMVBufferNone::regular() {
 	assert(m_acc->statBackend() == 0);
 	assert(m_acc->statFrontend() == 0);
 
+	bool bDone = false, fDone = false;
+
+	Xil_DCacheEnable();
+	unsigned int sampleCount = 0;
+	const unsigned int capacity = 1024 * 1024;
+	unsigned char cntr=0;
+	unsigned short *samples = new unsigned short[capacity];
+	for (unsigned int i = 0; i < capacity; i++)
+		samples[i] = 0;
+
 	m_acc->startRegular(1);
-	while (!(readBackendStatus(backendMaskDoneRegular)
-			&& readFrontendStatus(frontendMaskDoneRegular)))
-		;
+
+	while (!bDone || !fDone) {
+
+		bDone = readBackendStatus(backendMaskDoneRegular);
+		fDone = readFrontendStatus(frontendMaskDoneRegular);
+		cntr++;
+
+		if (cntr == 32 && sampleCount < capacity) {
+			samples[sampleCount] = getFIFOLevel((SpMVFIFONum) 4);
+			sampleCount++;
+			cntr=0;
+		}
+	};
+
+	cout << "samples: " << sampleCount << endl;
+	for (unsigned int i = 0; i < sampleCount; i++)
+			cout << i << " " << samples[i] << endl;
 
 	updateStatistics();
 
 	m_acc->startRegular(0);
+	Xil_DCacheDisable();
 }
 
 volatile unsigned short HardwareSpMVBufferNone::getFIFOLevel(SpMVFIFONum num) {
@@ -102,7 +128,7 @@ void HardwareSpMVBufferNone::printAllStatistics() {
 	cout << "Hazard stalls: " << m_hazardStalls << endl;
 	cout << "Capacity stalls: " << m_capacityStalls << endl;
 	cout << "Active cycles: " << m_activeCycles << endl;
-	cout << "Total cycles: " <<m_totalCycles << endl;
+	cout << "Total cycles: " << m_totalCycles << endl;
 	float act = (float) m_activeCycles / (float) m_totalCycles;
 	cout << "Active/Total = " << act << endl;
 }
@@ -115,12 +141,18 @@ void HardwareSpMVBufferNone::updateStatistics() {
 }
 
 unsigned int HardwareSpMVBufferNone::statInt(std::string name) {
-	if(name == "totalCycles") return m_totalCycles;
-	else if (name == "activeCycles") return m_activeCycles;
-	else if (name == "capacityStalls") return m_capacityStalls;
-	else if (name == "issueWindow") return m_acc->issueWindow();
-	else if (name == "hazardStalls") return m_hazardStalls;
-	else return HardwareSpMV::statInt(name);
+	if (name == "totalCycles")
+		return m_totalCycles;
+	else if (name == "activeCycles")
+		return m_activeCycles;
+	else if (name == "capacityStalls")
+		return m_capacityStalls;
+	else if (name == "issueWindow")
+		return m_acc->issueWindow();
+	else if (name == "hazardStalls")
+		return m_hazardStalls;
+	else
+		return HardwareSpMV::statInt(name);
 }
 
 std::vector<std::string> HardwareSpMVBufferNone::statKeys() {

@@ -11,7 +11,7 @@ import java.io.{FileInputStream, DataInputStream}
 
 
 class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
-  override lazy val accelVersion: String = "alpha-3"
+  override lazy val accelVersion: String = "alpha-4"
 
   // plug unused register file elems / set defaults
   plugRegOuts()
@@ -50,10 +50,10 @@ class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableA
     val bwMon = new StreamMonitorOutIF()
     val fifoCountsCPRI = UInt(width = p.csrDataWidth)
     val fifoCountsNZIV = UInt(width = p.csrDataWidth)
-
+    val debug = UInt(width = p.csrDataWidth)
   }
   override lazy val regMap = manageRegIO(in, out)
-
+  out.debug := UInt(0)
 
   // instantiate backend, connect memory port
   val backend = Module(new SpMVBackend(p, 0)).io
