@@ -45,6 +45,16 @@ class SpMVAccelWrapperParams(arg: List[String] = List()) extends BaseWrapperPara
     }
     return defVal
   }
+
+  // try to match key (present / not present)
+  def matchKey(key: String, defVal: Boolean): Boolean = {
+    val keyStr: String = "--" + key
+    for(p <- arg) {
+      if (p == keyStr) { return true}
+    }
+    return false
+  }
+
   // how many simultaneously threads in flight to allow
   val issueWindow = matchInt("issueWindow", 6)
   // OCM parameters -- TODO separate into own trait/class?
@@ -58,6 +68,7 @@ class SpMVAccelWrapperParams(arg: List[String] = List()) extends BaseWrapperPara
   val ocmReadLatency = 1
   val ocmWriteLatency = 1
   val ocmName = "WrapperBRAM"+opWidth.toString+"x"+ocmDepth.toString
+  val enableCMS: Boolean = matchKey("enableCMS", false)
 }
 
 object isVerilog {

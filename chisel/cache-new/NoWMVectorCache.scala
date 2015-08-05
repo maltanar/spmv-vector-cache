@@ -11,10 +11,11 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
 
   // useful shorthands/definitions
   val lineSize = p.opWidth
-  val addrBits = p.ptrWidth
+  val addrBits = if (p.enableCMS) p.ptrWidth-1 else p.ptrWidth
   val depth = p.ocmDepth
   val indBitCount = log2Up(depth)
   val tagBitCount = addrBits - indBitCount
+  def isStartOfRow(x: UInt): Bool = {x(p.ptrWidth-1)}
   def cacheTag(x: UInt): UInt = {x(indBitCount+tagBitCount-1, indBitCount)}
   def cacheInd(x: UInt): UInt = {x(indBitCount-1, 0)}
   def cacheAddr(tag: UInt , ind: UInt): UInt = {Cat(tag, ind)}
@@ -48,6 +49,7 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val rdReqValid = io.read.req.valid
   val rdReqTag = cacheTag(io.read.req.bits)
   val rdReqInd = cacheInd(io.read.req.bits)
+  val rdReqRowStart = isStartOfRow(io.read.req.bits)
 
   // cache write request shorthands
   val wrReqValid = io.write.req.valid
@@ -59,6 +61,7 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val regRdReqValid = Reg(next = rdReqValid)
   val regRdReqTag = Reg(next = rdReqTag)
   val regRdReqInd = Reg(next = rdReqInd)
+  val regRdReqRowStart = Reg(next = rdReqRowStart)
 
   // tag access for read port
   tagPortR.req.addr := rdReqInd
@@ -88,6 +91,7 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val readHit = regRdReqValid & rdTagMatch & rdCacheValid
   // read miss: valid request, but either invalid cacheline or tag mismatch
   val readMiss = regRdReqValid & (!rdTagMatch | !rdCacheValid)
+
 
   // default outputs
   io.done := Bool(false)
@@ -135,7 +139,7 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   ddr.memWrDat.bits := evictData
 
   // cache control state machine
-  val sActive :: sFill :: sFlush :: sDone :: sReadMiss1 :: sReadMiss2 :: sReadMiss3 :: Nil = Enum(UInt(), 7)
+  val sActive :: sFill :: sFlush :: sDone :: sReadMiss1 :: sReadMiss2 :: sReadMiss3 :: sColdMiss :: Nil = Enum(UInt(), 8)
   val regState = Reg(init = UInt(sActive))
   io.cacheState := regState
   // register for fill/flush line counting
@@ -159,8 +163,11 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
         dataPortR.req.addr := UInt(0)
       }
       .elsewhen (io.startInit) {regState := sFill}
-      .elsewhen(readMiss) {regState := sReadMiss1}
-      .otherwise {
+      .elsewhen(readMiss) {
+        if(p.enableCMS) {
+          regState := Mux(regRdReqRowStart, sColdMiss, sReadMiss1)
+        } else {regState := sReadMiss1}
+      } .otherwise {
         // regular cache activity
         // only pass through read hits with the transaction indicator
         // TODO will response stalls affect correctness here?
@@ -209,6 +216,18 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
     is(sDone) {
       io.done := Bool(true)
       when(!io.startWrite & !io.startInit) {regState := sActive}
+    }
+
+    is(sColdMiss) {
+      when(canDoExtWrite) {
+        regReadMissCount := regReadMissCount + UInt(1)
+        // update cache data and tag
+        tagPortR.req.writeEn := Bool(true)
+        dataPortR.req.writeEn := Bool(true)
+        // special for cold miss handling: write 0 as cache data
+        dataPortR.req.writeData := UInt(0)
+        regState := sReadMiss3
+      }
     }
 
     is(sReadMiss1) {
