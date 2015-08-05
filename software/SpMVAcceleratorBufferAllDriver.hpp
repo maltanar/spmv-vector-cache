@@ -4,7 +4,7 @@
 class SpMVAcceleratorBufferAllDriver {
 public:
  static unsigned int expSignature() {return 0xccd68766;};
- SpMVAcceleratorDriver(volatile unsigned int * baseAddr) {
+ SpMVAcceleratorBufferAllDriver(volatile unsigned int * baseAddr) {
   m_baseAddr = baseAddr; assert(signature() == expSignature());};
  // read+write register: startInit index: 10
  void startInit(unsigned int v) {m_baseAddr[10] = v;};
