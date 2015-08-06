@@ -12,7 +12,7 @@ import java.io.{FileInputStream, DataInputStream}
 
 
 class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
-  override lazy val accelVersion: String = "alpha-4"
+  override lazy val accelVersion: String = "alpha-5"
 
   // plug unused register file elems / set defaults
   plugRegOuts()
@@ -88,7 +88,7 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
   frontend.mp <> io.mp(1)
   // frontend stats
   val statFrontendL = List(frontend.doneInit, frontend.doneWrite, frontend.doneRegular)
-  out.statFrontend := Cat(statFrontendL)
+  out.statFrontend := Cat(Bool(p.enableCMS), Cat(statFrontendL))
 
   // instantiate FIFOs for backend-frontend communication
   val colPtrFIFO = Module(new CustomQueue(tColPtr, p.colPtrFIFODepth)).io

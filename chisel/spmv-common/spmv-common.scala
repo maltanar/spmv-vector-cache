@@ -34,7 +34,7 @@ class SpMVAccelWrapperParams(arg: List[String] = List()) extends BaseWrapperPara
   val makeMul: () => SemiringOp = {() => new DPMultiplier(4)}
 
   lazy val suffix: String = {
-    ocmDepth.toString + "-" + issueWindow.toString
+    (if(enableCMS) "cms-" else "-") + ocmDepth.toString + "-" + issueWindow.toString
   }
 
   // try to find given key in args, return defVal otherwise
