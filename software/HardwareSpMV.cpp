@@ -1,4 +1,5 @@
 #include "HardwareSpMV.h"
+#include "xil_cache.h"
 #include <assert.h>
 #include <string.h>
 
@@ -52,4 +53,23 @@ std::vector<std::string> HardwareSpMV::statKeys() {
 	keys.push_back("cols");
 	keys.push_back("nz");
 	return keys;
+}
+
+void HardwareSpMV::init() {
+}
+
+void HardwareSpMV::write() {
+	// make sure output vector is invalidated in cache prior to reads by CPU
+	//Xil_DCacheInvalidateRange((unsigned int)m_y, sizeof(SpMVData)*(m_A->getRows()));
+}
+
+void HardwareSpMV::regular() {
+	// make sure all SpMV data is flushed to DRAM
+	/*
+	Xil_DCacheFlushRange((unsigned int)m_A->getIndPtrs(), sizeof(SpMVIndex)*(m_A->getCols()+1));
+	Xil_DCacheFlushRange((unsigned int)m_A->getInds(), sizeof(SpMVIndex)*(m_A->getNz()));
+	Xil_DCacheFlushRange((unsigned int)m_A->getNzData(), sizeof(SpMVData)*(m_A->getNz()));
+	Xil_DCacheFlushRange((unsigned int)m_x, sizeof(SpMVData)*(m_A->getCols()));
+	Xil_DCacheFlushRange((unsigned int)m_y, sizeof(SpMVData)*(m_A->getRows()));
+*/
 }

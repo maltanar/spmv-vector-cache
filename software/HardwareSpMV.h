@@ -21,6 +21,10 @@ protected:
 	volatile unsigned int * m_accelBase;
 	volatile unsigned int * m_resetBase;
 	int m_diffFromGolden;
+
+	virtual void init();
+	virtual void write();
+	virtual void regular();
 };
 
 #endif /* HARDWARESPMV_H_ */
