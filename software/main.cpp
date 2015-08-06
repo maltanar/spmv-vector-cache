@@ -80,13 +80,13 @@ void printResults(HardwareSpMV * spmv, vector<string> keys) {
  webbase-1M
  q
 
-medium matrices (around 64K, useful for BufferAll testing)
-2D_54019_highK
-mark3jac140
-cant
-pdb1HYS
-conf5_4-8x8-05
-q
+ medium matrices (around 64K, useful for BufferAll testing)
+ 2D_54019_highK
+ mark3jac140
+ cant
+ pdb1HYS
+ conf5_4-8x8-05
+ q
 
  other matrices (small row/col count, < 32K):
  li
@@ -95,6 +95,9 @@ q
  c-52
  q
  */
+
+// TODO parametrize cold miss skip depending on hw availability instead
+#define CMS
 
 int main(int argc, char *argv[]) {
 	loadedMatrixName = "";
@@ -163,6 +166,14 @@ int main(int argc, char *argv[]) {
 				y[i] = (SpMVData) 0;
 			}
 
+			// execute SpMV in software for correctness check
+			SoftwareSpMV * check = new SoftwareSpMV(A, x);
+			check->exec();
+
+#ifdef CMS
+			A->markRowStarts();
+#endif
+
 			HardwareSpMV * spmv = HWSpMVFactory::make(accBase, resBase, A, x,
 					y);
 			// generate + print stat keys on the first run
@@ -175,13 +186,9 @@ int main(int argc, char *argv[]) {
 				keysBuilt = true;
 			}
 
-			SoftwareSpMV * check = new SoftwareSpMV(A, x);
-
 			spmv->exec();
-			check->exec();
-
+			// verify hw result against sw result
 			spmv->compareGolden(check->getY());
-
 			printResults(spmv, keys);
 
 			delete spmv;

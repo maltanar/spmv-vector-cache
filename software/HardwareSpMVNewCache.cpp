@@ -4,7 +4,7 @@
 using namespace std;
 
 const char * stateNames[] = { "sActive", "sFill", "sFlush", "sDone",
-			"sReadMiss1", "sReadMiss2", "sReadMiss3" };
+			"sReadMiss1", "sReadMiss2", "sReadMiss3", "sColdMiss" };
 
 HardwareSpMVNewCache::HardwareSpMVNewCache(unsigned int aBase,
 		unsigned int aReset, SparseMatrix * A, SpMVData *x, SpMVData *y) :
@@ -46,7 +46,7 @@ void HardwareSpMVNewCache::setupRegs() {
 }
 
 void HardwareSpMVNewCache::init() {
-	assert(m_acc->statFrontend() == 0);
+	assert((m_acc->statFrontend() & 0x7) == 0);
 
 	m_acc->startInit(1);
 
@@ -58,7 +58,7 @@ void HardwareSpMVNewCache::init() {
 
 void HardwareSpMVNewCache::write() {
 	assert(m_acc->statBackend() == 0);
-	assert(m_acc->statFrontend() == 0);
+	assert((m_acc->statFrontend() & 0x7) == 0);
 
 	m_acc->startWrite(1);
 
@@ -91,7 +91,7 @@ bool HardwareSpMVNewCache::exec() {
 
 void HardwareSpMVNewCache::regular() {
 	assert(m_acc->statBackend() == 0);
-	assert(m_acc->statFrontend() == 0);
+	assert((m_acc->statFrontend() & 0x7) == 0);
 
 	m_acc->startRegular(1);
 	while (!(readBackendStatus(backendMaskDoneRegular)
@@ -137,6 +137,7 @@ unsigned int HardwareSpMVNewCache::statInt(std::string name) {
 	else if (name == "ocmDepth") return m_acc->ocmWords();
 	else if (name == "issueWindow") return m_acc->issueWindow();
 	else if (name == "hazardStalls") return m_hazardStalls;
+	else if (name == "cms") return (m_acc->statFrontend() & frontendSupportCMS) >> 3;
 	else {
 		for (unsigned int i = 0; i < PROFILER_STATES; i++) {
 			if(name == stateNames[i]) return m_stateCounts[i];
@@ -184,5 +185,6 @@ std::vector<std::string> HardwareSpMVNewCache::statKeys() {
 	keys.push_back("ocmDepth");
 	keys.push_back("issueWindow");
 	keys.push_back("hazardStalls");
+	keys.push_back("cms");
 	return keys;
 }

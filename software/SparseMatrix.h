@@ -28,6 +28,8 @@ public:
 
 	static SparseMatrix* fromMemory(unsigned int metaDataBase);
 
+	void markRowStarts();
+
 	unsigned int getCols() const {
 		return m_cols;
 	}
@@ -60,6 +62,8 @@ protected:
 	SpMVIndex * m_inds;
 	SpMVData * m_nzData;
 	std::string m_name;
+
+	bool m_rowStartsMarked;
 };
 
 #endif /* SPARSEMATRIX_H_ */

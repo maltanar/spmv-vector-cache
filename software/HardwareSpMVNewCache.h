@@ -33,7 +33,8 @@ protected:
 	typedef enum {
 		frontendMaskDoneRegular = 1,
 		frontendMaskDoneWrite = 2,
-		frontendMaskDoneInit = 4
+		frontendMaskDoneInit = 4,
+		frontendSupportCMS = 8
 	} FrontendStatMask;
 	bool readFrontendStatus(FrontendStatMask mask);
 
@@ -62,7 +63,7 @@ protected:
 	unsigned int m_conflictMisses;
 	unsigned int m_hazardStalls;
 
-#define PROFILER_STATES 7
+#define PROFILER_STATES 8
 	unsigned int m_stateCounts[PROFILER_STATES];
 
 };
