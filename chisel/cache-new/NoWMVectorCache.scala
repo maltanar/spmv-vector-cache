@@ -4,6 +4,19 @@ import Chisel._
 import TidbitsOCM._
 import TidbitsDMA._
 
+class FullTagResponse(indBits: Int, tagBits: Int, dataBits: Int) extends Bundle {
+  val ind = UInt(width = indBits)
+  val reqCMS = Bool()
+  val reqTag = UInt(width = tagBits)
+  val rspTag = UInt(width = tagBits)
+  val rspValid = Bool()
+  val rspData = UInt(width = dataBits)
+
+  override def clone = {
+    new FullTagResponse(indBits, tagBits, dataBits).asInstanceOf[this.type]
+  }
+}
+
 class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val io = new SinglePortCacheIF(p)
   val pOCM = new OCMParameters( p.ocmDepth*p.opWidth, p.opWidth, p.opWidth, 2,
@@ -45,53 +58,80 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   when(wReqTxn & !wRspTxn) {regPendingWrites := regPendingWrites + UInt(1)}
   .elsewhen(!wReqTxn & wRspTxn) {regPendingWrites := regPendingWrites - UInt(1)}
 
+  /////////////////////////// cache read port ///////////////////////////
   // cache read request shorthands
   val rdReqValid = io.read.req.valid
   val rdReqTag = cacheTag(io.read.req.bits)
   val rdReqInd = cacheInd(io.read.req.bits)
   val rdReqRowStart = isStartOfRow(io.read.req.bits)
 
-  // cache write request shorthands
-  val wrReqValid = io.write.req.valid
-  val wrReqTag = cacheTag(io.write.req.bits.id)
-  val wrReqInd = cacheInd(io.write.req.bits.id)
-  val wrReqData = io.write.req.bits.data
-
   // registered version of the cache read request
+  // TODO these should be ShiftRegs if tag read has higher latency
   val regRdReqValid = Reg(next = rdReqValid)
   val regRdReqTag = Reg(next = rdReqTag)
   val regRdReqInd = Reg(next = rdReqInd)
   val regRdReqRowStart = Reg(next = rdReqRowStart)
 
-  // tag access for read port
+  // tag + data access for read port
   tagPortR.req.addr := rdReqInd
-  // writeEn & writeData are used during read miss replacement
-  tagPortR.req.writeEn := Bool(false)
-  tagPortR.req.writeData := Cat(regRdReqTag, Bits("b1"))
-
-  // data access for read port
   dataPortR.req.addr := rdReqInd
-  // writeEn & writeData are used during read miss replacement
-  dataPortR.req.writeEn := Bool(false)
-  dataPortR.req.writeData := ddr.memRdRsp.bits.readData
-
-  // data access for write port
-  dataPortW.req.addr := wrReqInd
-  dataPortW.req.writeEn := wrReqValid
-  dataPortW.req.writeData := wrReqData
 
   // shorthands for the returned read data
   val rdCacheTag = tagPortR.rsp.readData(tagBitCount, 1)
   // lowest bit of tag storage is used as valid indicator
   val rdCacheValid = tagPortR.rsp.readData(0)
   val rdCacheData = dataPortR.rsp.readData
-  val rdTagMatch = (rdCacheTag === regRdReqTag)
 
-  // read hit: valid request, cacheline valid and tag matches
-  val readHit = regRdReqValid & rdTagMatch & rdCacheValid
-  // read miss: valid request, but either invalid cacheline or tag mismatch
-  val readMiss = regRdReqValid & (!rdTagMatch | !rdCacheValid)
+  // tag response queue
+  // TODO 2 is dependent on tag+data read latency (1) plus outstanding misses (1)
+  val tagRespType = new FullTagResponse(indBitCount, tagBitCount, lineSize)
+  val tagRespQ = Module(new Queue(tagRespType, 2)).io
+  tagRespQ.enq.valid := regRdReqValid
+  // TODO 1 here is max outstanding cache misses
+  // to overcome stale control flow
+  io.read.req.ready := (tagRespQ.count < UInt(1))
+  tagRespQ.enq.bits.ind := regRdReqInd
+  tagRespQ.enq.bits.reqCMS := regRdReqRowStart
+  tagRespQ.enq.bits.reqTag := regRdReqTag
+  tagRespQ.enq.bits.rspTag := rdCacheTag
+  tagRespQ.enq.bits.rspValid := rdCacheValid
+  tagRespQ.enq.bits.rspData := rdCacheData
+  tagRespQ.deq.ready := Bool(false)
 
+  val headValid = tagRespQ.deq.valid
+  val head = tagRespQ.deq.bits
+
+  val readHit = headValid & head.rspValid & (head.reqTag === head.rspTag)
+  val readMiss = headValid & !(head.rspValid & (head.reqTag === head.rspTag))
+
+  // cache read response
+  io.read.rsp.valid := Bool(false)
+  io.read.rsp.bits := head.rspData
+
+  // read miss replacement
+  val regReadMissData = Reg(init = UInt(0, lineSize))
+  tagPortR.req.writeData := head.reqTag
+  dataPortR.req.writeData := regReadMissData
+  // write enables will be set by state machine
+  tagPortR.req.writeEn := Bool(false)
+  dataPortR.req.writeEn := Bool(false)
+
+  /////////////////////////// cache write port ///////////////////////////
+  // cache write request shorthands
+  val wrReqValid = io.write.req.valid
+  val wrReqTag = cacheTag(io.write.req.bits.id)
+  val wrReqInd = cacheInd(io.write.req.bits.id)
+  val wrReqData = io.write.req.bits.data
+
+  // data access for write port
+  dataPortW.req.addr := wrReqInd
+  dataPortW.req.writeEn := wrReqValid
+  dataPortW.req.writeData := wrReqData
+
+  // cache write port
+  io.write.req.ready := Bool(true)  // always ready to accept writes
+  // write completion, 1 cycle after write request was valid
+  io.writeComplete := Reg(next = wrReqValid)
 
   // default outputs
   io.done := Bool(false)
@@ -102,22 +142,12 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   io.readMissCount := regReadMissCount
   io.writeMissCount := UInt(0)  // this variant can have no write misses
 
-  // cache read port
-  io.read.req.ready := Bool(false)
-  io.read.rsp.valid := Bool(false)
-  io.read.rsp.bits := rdCacheData  // data read from cache
-
-  // cache write port
-  io.write.req.ready := Bool(true)  // always ready to accept writes
-  // write completion, 1 cycle after write request was valid
-  io.writeComplete := Reg(next = wrReqValid)
-
   // DDR ports
   val opBytes = UInt(p.opWidth/8)
   val vecBase = io.base
-  val missLocation = cacheAddr(regRdReqTag, regRdReqInd)
-  val evictLocation = cacheAddr(rdCacheTag, regRdReqInd)
-  val evictData = rdCacheData
+  val missLocation = cacheAddr(head.reqTag, head.ind)
+  val evictLocation = cacheAddr(head.rspTag, head.ind)
+  val evictData = head.rspData
   // DDR read requests
   ddr.memRdReq.valid := Bool(false)
   ddr.memRdReq.bits.driveDefaults()
@@ -145,13 +175,10 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   // register for fill/flush line counting
   val regCacheInd = Reg(init = UInt(0, 32))
 
-  // "transaction indicator" to avoid repeated read results on a hit
-  // (due to handshaking latency caused by the BRAM tag read)
-  val regTxnInd = Reg(next = io.read.req.valid & io.read.req.ready)
-
   // use the mem wr req and data channels in lockstep
   val canDoExtWrite = ddr.memWrReq.ready & ddr.memWrDat.ready
   val canDoExtRead = ddr.memRdReq.ready
+
 
   switch(regState) {
     is(sActive) {
@@ -165,14 +192,12 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
       .elsewhen (io.startInit) {regState := sFill}
       .elsewhen(readMiss) {
         if(p.enableCMS) {
-          regState := Mux(regRdReqRowStart, sColdMiss, sReadMiss1)
+          regState := Mux(head.reqCMS, sColdMiss, sReadMiss1)
         } else {regState := sReadMiss1}
       } .otherwise {
         // regular cache activity
-        // only pass through read hits with the transaction indicator
-        // TODO will response stalls affect correctness here?
-        io.read.rsp.valid := readHit & regTxnInd
-        io.read.req.ready := io.read.rsp.ready & readHit
+        tagRespQ.deq.ready := readHit
+        io.read.rsp.valid := readHit
       }
     }
 
@@ -219,16 +244,14 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
     }
 
     is(sColdMiss) {
-      when(canDoExtWrite | !rdCacheValid) {
+      val needEvict = !head.rspValid
+      when(canDoExtWrite | needEvict) {
         // write request only emitted on conflict miss (different valid tag)
-        ddr.memWrReq.valid := rdCacheValid
-        ddr.memWrDat.valid := rdCacheValid
+        ddr.memWrReq.valid := needEvict
+        ddr.memWrDat.valid := needEvict
         regReadMissCount := regReadMissCount + UInt(1)
-        // update cache data and tag
-        tagPortR.req.writeEn := Bool(true)
-        dataPortR.req.writeEn := Bool(true)
         // special for cold miss handling: write 0 as cache data
-        dataPortR.req.writeData := UInt(0)
+        regReadMissData := UInt(0)
         regState := sReadMiss3
       }
     }
@@ -236,11 +259,12 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
     is(sReadMiss1) {
       // wait until all pending writes are complete before proceeding with
       // read miss handling, plus place on the read/write queues
-      when(noPendingWrites & canDoExtRead & (canDoExtWrite | !rdCacheValid)) {
+      val needEvict = !head.rspValid
+      when(noPendingWrites & canDoExtRead & (canDoExtWrite | !needEvict)) {
         ddr.memRdReq.valid := Bool(true) // load the missing index
         // write request only emitted on conflict miss (different valid tag)
-        ddr.memWrReq.valid := rdCacheValid
-        ddr.memWrDat.valid := rdCacheValid
+        ddr.memWrReq.valid := needEvict
+        ddr.memWrDat.valid := needEvict
         // count miss
         regReadMissCount := regReadMissCount + UInt(1)
         regState := sReadMiss2
@@ -248,20 +272,31 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
     }
 
     is(sReadMiss2) {
-      // wait for read response
+      // wait for DDR read response and save it to regReadMissData
       ddr.memRdRsp.ready := Bool(true)
-
       when(ddr.memRdRsp.valid) {
-        // update cache data and tag
-        tagPortR.req.writeEn := Bool(true)
-        dataPortR.req.writeEn := Bool(true)
+        regReadMissData := ddr.memRdRsp.bits.readData
         regState := sReadMiss3
       }
     }
 
     is(sReadMiss3) {
-      // delay one more cycle to let tag change propagate (get a cache hit)
-      regState := sActive
+      // set addresses for tag and data write
+      tagPortR.req.addr := head.ind
+      dataPortR.req.addr := head.ind
+      // make read response available
+      io.read.rsp.valid := Bool(true)
+      io.read.rsp.bits := regReadMissData
+
+      when(io.read.rsp.ready) {
+        // pop off pending miss from head
+        // since we are in a read miss, we know it's valid for sure, no check
+        tagRespQ.deq.ready := Bool(true)
+        // update cache data and tag
+        tagPortR.req.writeEn := Bool(true)
+        dataPortR.req.writeEn := Bool(true)
+        regState := sActive
+      }
     }
   }
 }

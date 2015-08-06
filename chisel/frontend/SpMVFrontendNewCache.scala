@@ -131,7 +131,7 @@ class SpMVFrontendNewCache(val p: SpMVAccelWrapperParams) extends Module {
 
   val cacheWaitReadQ = Module(new Queue(opWidthIdType, p.issueWindow+1)).io
   cacheReadFork.outA <> cacheWaitReadQ.enq
-  cache.read.req <> Queue(cacheReadFork.outB, 1)
+  cache.read.req <> cacheReadFork.outB
 
   val cacheReadJoin = Module(new StreamJoin(opWidthIdType, opType, opsAndId, joinOpIdOp)).io
   cacheReadJoin.inA <> cacheWaitReadQ.deq
