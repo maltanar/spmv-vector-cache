@@ -219,7 +219,10 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
     }
 
     is(sColdMiss) {
-      when(canDoExtWrite) {
+      when(canDoExtWrite | !rdCacheValid) {
+        // write request only emitted on conflict miss (different valid tag)
+        ddr.memWrReq.valid := rdCacheValid
+        ddr.memWrDat.valid := rdCacheValid
         regReadMissCount := regReadMissCount + UInt(1)
         // update cache data and tag
         tagPortR.req.writeEn := Bool(true)
@@ -233,8 +236,7 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
     is(sReadMiss1) {
       // wait until all pending writes are complete before proceeding with
       // read miss handling, plus place on the read/write queues
-      // TODO take care of these in separate states?
-      when(noPendingWrites & canDoExtRead & canDoExtWrite) {
+      when(noPendingWrites & canDoExtRead & (canDoExtWrite | !rdCacheValid)) {
         ddr.memRdReq.valid := Bool(true) // load the missing index
         // write request only emitted on conflict miss (different valid tag)
         ddr.memWrReq.valid := rdCacheValid
