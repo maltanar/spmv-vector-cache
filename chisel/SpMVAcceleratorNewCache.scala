@@ -323,10 +323,15 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       //printWhenTransaction("InpVec", inpVecFIFO.deq)
       //printWhenTransaction("$rreq", frontendM.cache.read.req)
       //printWhenTransactionAggr("$wreq", frontendM.cache.write.req)
+      //println(t.peek(frontendM.cacheM.regState).toString)
       //printWhenTransactionAggr("$memrreq", frontendM.cache.mem.memRdReq)
       //printWhenTransactionAggr("$memwreq", frontendM.cache.mem.memWrReq)
       //printWhenTransactionAggr("$memrsp", frontendM.cache.mem.memRdRsp)
       //printWhenTransaction("$rrsp", frontendM.cache.read.rsp)
+      //printWhenTransactionAggr("$headIn", frontendM.cacheM.tagRespQ.enq)
+      //printWhenTransactionAggr("$headOut", frontendM.cacheM.tagRespQ.deq)
+      //printWhenTransactionAggr("waitReadIn", frontendM.cacheWaitReadQ.enq)
+      //printWhenTransactionAggr("waitReadOut", frontendM.cacheWaitReadQ.deq)
     }
 
     def traceWrite() = {
@@ -334,7 +339,7 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       //printWhenTransaction("dat", frontendM.io.mp.memWrDat)
     }
 
-    val matrixName = "scircuit"
+    val matrixName = "i64"
 
     t.isTrace = false
     setThresholds()

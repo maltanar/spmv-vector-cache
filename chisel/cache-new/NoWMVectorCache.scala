@@ -85,8 +85,10 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   // tag response queue
   // TODO 2 is dependent on tag+data read latency (1) plus outstanding misses (1)
   val tagRespType = new FullTagResponse(indBitCount, tagBitCount, lineSize)
+  // TODO is this "modified queue" correct? think about this;
+  // how stale can the control signals get?
   val tagRespQ = Module(new Queue(tagRespType, 2)).io
-  tagRespQ.enq.valid := regRdReqValid
+  tagRespQ.enq.valid := regRdReqValid & (tagRespQ.count < UInt(1))
   // TODO 1 here is max outstanding cache misses
   // to overcome stale control flow
   io.read.req.ready := (tagRespQ.count < UInt(1))
@@ -110,7 +112,7 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
 
   // read miss replacement
   val regReadMissData = Reg(init = UInt(0, lineSize))
-  tagPortR.req.writeData := head.reqTag
+  tagPortR.req.writeData := Cat(head.reqTag, Bits("b1"))
   dataPortR.req.writeData := regReadMissData
   // write enables will be set by state machine
   tagPortR.req.writeEn := Bool(false)
@@ -179,7 +181,6 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val canDoExtWrite = ddr.memWrReq.ready & ddr.memWrDat.ready
   val canDoExtRead = ddr.memRdReq.ready
 
-
   switch(regState) {
     is(sActive) {
       regCacheInd := UInt(0)
@@ -244,7 +245,7 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
     }
 
     is(sColdMiss) {
-      val needEvict = !head.rspValid
+      val needEvict = head.rspValid
       when(canDoExtWrite | needEvict) {
         // write request only emitted on conflict miss (different valid tag)
         ddr.memWrReq.valid := needEvict
@@ -259,7 +260,7 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
     is(sReadMiss1) {
       // wait until all pending writes are complete before proceeding with
       // read miss handling, plus place on the read/write queues
-      val needEvict = !head.rspValid
+      val needEvict = head.rspValid
       when(noPendingWrites & canDoExtRead & (canDoExtWrite | !needEvict)) {
         ddr.memRdReq.valid := Bool(true) // load the missing index
         // write request only emitted on conflict miss (different valid tag)
