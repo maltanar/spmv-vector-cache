@@ -65,9 +65,11 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val rdReqInd = cacheInd(io.read.req.bits)
   val rdReqRowStart = isStartOfRow(io.read.req.bits)
 
+  val queueHasRoom = Bool()
+
   // registered version of the cache read request
   // TODO these should be ShiftRegs if tag read has higher latency
-  val regRdReqValid = Reg(next = rdReqValid)
+  val regRdReqValid = Reg(next = rdReqValid & queueHasRoom)
   val regRdReqTag = Reg(next = rdReqTag)
   val regRdReqInd = Reg(next = rdReqInd)
   val regRdReqRowStart = Reg(next = rdReqRowStart)
@@ -83,15 +85,12 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val rdCacheData = dataPortR.rsp.readData
 
   // tag response queue
-  // TODO 2 is dependent on tag+data read latency (1) plus outstanding misses (1)
+  // TODO 2 is dependent on tag+data read latency (1) plus outstanding misses (1)?
   val tagRespType = new FullTagResponse(indBitCount, tagBitCount, lineSize)
-  // TODO is this "modified queue" correct? think about this;
-  // how stale can the control signals get?
   val tagRespQ = Module(new Queue(tagRespType, 2)).io
-  tagRespQ.enq.valid := regRdReqValid & (tagRespQ.count < UInt(1))
-  // TODO 1 here is max outstanding cache misses
-  // to overcome stale control flow
-  io.read.req.ready := (tagRespQ.count < UInt(1))
+  queueHasRoom := (tagRespQ.count < UInt(1))
+  tagRespQ.enq.valid := regRdReqValid
+  io.read.req.ready := queueHasRoom
   tagRespQ.enq.bits.ind := regRdReqInd
   tagRespQ.enq.bits.reqCMS := regRdReqRowStart
   tagRespQ.enq.bits.reqTag := regRdReqTag
