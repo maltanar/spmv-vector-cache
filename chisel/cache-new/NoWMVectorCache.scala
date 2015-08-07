@@ -87,8 +87,10 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   // tag response queue
   // TODO 2 is dependent on tag+data read latency (1) plus outstanding misses (1)?
   val tagRespType = new FullTagResponse(indBitCount, tagBitCount, lineSize)
-  val tagRespQ = Module(new Queue(tagRespType, 2)).io
-  queueHasRoom := (tagRespQ.count < UInt(1))
+  val qs: Int = 4
+  val tagRespQ = Module(new Queue(tagRespType, qs)).io
+  val qfree = UInt(qs)-tagRespQ.count
+  queueHasRoom := Bool(false)
   tagRespQ.enq.valid := regRdReqValid
   io.read.req.ready := queueHasRoom
   tagRespQ.enq.bits.ind := regRdReqInd
@@ -195,8 +197,9 @@ class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
           regState := Mux(head.reqCMS, sColdMiss, sReadMiss1)
         } else {regState := sReadMiss1}
       } .otherwise {
+        queueHasRoom := (qfree > UInt(1))
         // regular cache activity
-        tagRespQ.deq.ready := readHit
+        tagRespQ.deq.ready := readHit & io.read.rsp.ready
         io.read.rsp.valid := readHit
       }
     }
