@@ -124,7 +124,7 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
   out.bwMon := StreamMonitor(io.mp(0).memRdRsp, in.startRegular & !frontend.doneRegular)
 
   // state profiler to monitor the cache activity
-  val sp = Module(new StateProfiler(7)).io
+  val sp = Module(new StateProfiler(8)).io
   sp.start := in.startRegular
   sp.probe := frontend.cacheState
   sp.sel := in.profileSel
@@ -132,6 +132,8 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
 
   // test
   override def defaultTest(t: WrappableAccelTester): Boolean = {
+    var txnCounters = scala.collection.mutable.Map[String,Int]()
+
     t.reset(10)
     super.defaultTest(t)
     val ptrBytes = p.ptrWidth/8
@@ -262,11 +264,18 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       println("Output vector written to "+fileName)
     }
 
+    def countTxn(name: String): Int = {
+      if(txnCounters.contains(name)) {txnCounters(name) = txnCounters(name)+1}
+      else txnCounters(name) = 1
+      return txnCounters(name)
+    }
+
     def printWhenTransaction(name: String, decif: DecoupledIO[UInt]) = {
       val v = t.peek(decif.valid)
       val r = t.peek(decif.ready)
       if(v == 1 && r == 1) {
         println(name + "@"+ t.t.toString + " : " + t.peek(decif.bits).toString)
+        println(name + " txns: " + countTxn(name).toString)
       }
     }
 
@@ -277,6 +286,7 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       val c = cond(t.peek(decif.bits))
       if(v == 1 && r == 1 && c) {
         println(name + "@"+ t.t.toString + " : " + t.peek(decif.bits).toString)
+        println(name + " txns: " + countTxn(name).toString)
       }
     }
 
@@ -290,6 +300,7 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
         t.isTrace=true
         t.peek(decif.bits)
         t.isTrace=false
+        println(name + " txns: " + countTxn(name).toString)
       }
     }
 
@@ -301,6 +312,7 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
         t.isTrace=true
         t.peek(decif.bits)
         t.isTrace=false
+        println(name + " txns: " + countTxn(name).toString)
       }
     }
 
@@ -312,6 +324,7 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
         t.isTrace=true
         t.peek(mon(decif.bits))
         t.isTrace=false
+        println(name + " txns: " + countTxn(name).toString)
       }
     }
 
@@ -322,16 +335,17 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       //printWhenTransaction("NZData", nzDataFIFO.deq)
       //printWhenTransaction("InpVec", inpVecFIFO.deq)
       //printWhenTransaction("$rreq", frontendM.cache.read.req)
-      //printWhenTransactionAggr("$wreq", frontendM.cache.write.req)
+      //printWhenTransaction("$rrsp", frontendM.cache.read.rsp)
       //println(t.peek(frontendM.cacheM.regState).toString)
       //printWhenTransactionAggr("$memrreq", frontendM.cache.mem.memRdReq)
       //printWhenTransactionAggr("$memwreq", frontendM.cache.mem.memWrReq)
       //printWhenTransactionAggr("$memrsp", frontendM.cache.mem.memRdRsp)
-      //printWhenTransaction("$rrsp", frontendM.cache.read.rsp)
       //printWhenTransactionAggr("$headIn", frontendM.cacheM.tagRespQ.enq)
       //printWhenTransactionAggr("$headOut", frontendM.cacheM.tagRespQ.deq)
       //printWhenTransactionAggr("waitReadIn", frontendM.cacheWaitReadQ.enq)
       //printWhenTransactionAggr("waitReadOut", frontendM.cacheWaitReadQ.deq)
+      //println("Queue: " +t.peek(frontendM.cacheM.tagRespQ.count).toString)
+      //printWhenTransactionAggr("$wreq", frontendM.cache.write.req)
     }
 
     def traceWrite() = {
@@ -339,7 +353,7 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       //printWhenTransaction("dat", frontendM.io.mp.memWrDat)
     }
 
-    val matrixName = "i64"
+    val matrixName = "circuit204"
 
     t.isTrace = false
     setThresholds()
