@@ -11,7 +11,10 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   val opType = UInt(width=p.opWidth)
   val idType = UInt(width=p.ptrWidth)
   val opWidthIdType = new OperandWithID(p.opWidth, p.ptrWidth)
+  val opsAndId = new OperandWithID(2*p.opWidth, p.ptrWidth)
+  val shadowType = new OperandWithID(1, p.ptrWidth)
   val syncOpType = new SemiringOperands(p.opWidth)
+
   val io = new Bundle {
     val enable = Bool(INPUT)
     val opCount = UInt(OUTPUT, width = 32)
@@ -19,6 +22,21 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
     val operands = Decoupled(new OperandWithID(p.opWidth, p.ptrWidth)).flip
     val mcif = new OCMControllerIF(pOCM)
   }
+  // useful functions for working with stream forks and joins
+  val forkAll = {x: OperandWithID => x}
+  val forkShadow = {x: OperandWithID => OperandWithID(UInt(0, width=1), x.id)}
+  val forkId = {x: OperandWithID => x.id}
+  val forkOp = {x: OperandWithID => x.data}
+  def forkOps(x: OperandWithID) : SemiringOperands = {
+    val opA = x.data(2*p.opWidth-1, p.opWidth)
+    val opB = x.data(p.opWidth-1, 0)
+    return SemiringOperands(p.opWidth, opA, opB)
+  }
+  val joinOpIdOp= {
+    (a: OperandWithID, b: UInt) => OperandWithID(Cat(a.data, b), a.id)
+  }
+  val joinOpId = {(op: UInt, id: UInt) => OperandWithID(op, id)}
+  val joinOpOp = {(a: UInt, b: UInt) => SemiringOperands(p.opWidth, a, b)}
 
   // instantiate OCM for storing contexts
   val contextStore = Module(new OCMAndController(pOCM, p.ocmName, p.ocmPrebuilt)).io
@@ -30,56 +48,46 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
 
   val adder = Module(p.makeAdd())
 
-  // TODO is this +1 necessary? replace with ocmWriteLatency?
-  lazy val rawLatency = adder.latency + p.ocmReadLatency + 1
+  val shadow = Module(new UniqueQueue(1, p.ptrWidth, p.issueWindow)).io
+  val cacheEntry = Module(new StreamFork(opWidthIdType, opWidthIdType, shadowType,
+                      forkAll, forkShadow)).io
+  val opIdFork = Module(new StreamFork(opWidthIdType, idType, opType, forkId, forkOp)).io
 
-  // TODO expose hazard count to parent
-  val guard = Module(new HazardGuard(p.opWidth, p.ptrWidth, rawLatency)).io
-  guard.streamIn <> io.operands
-  io.hazardStalls := guard.hazardStalls
+  cacheEntry.in <> io.operands
+  cacheEntry.outB <> shadow.enq
+  cacheEntry.outA <> opIdFork.in
 
-  val hazardFreeOps = guard.streamOut
-  // uncomment to debug hazard-free op inputs
-  /*when(hazardFreeOps.valid) {
-    printf("OP id=%x data=%x\n", hazardFreeOps.bits.id, hazardFreeOps.bits.data)
-  }*/
 
-  // TODO parametrize depths
-  val opQ = Module(new Queue(opType, 4)).io
-  val idQ = Module(new Queue(idType, 4)).io
-  val forkOp = {x: OperandWithID => x.data}
-  val forkId = {x: OperandWithID => x.id}
-  val fork = Module(new StreamFork(opWidthIdType, opType, idType,
-                      forkOp, forkId)).io
-  // fork op-id stream into op and id streams
-  opQ.enq <> fork.outA
-  idQ.enq <> fork.outB
-  fork.in <> hazardFreeOps
-  // shift register to determine load completion
-  val loadValid = ShiftRegister(hazardFreeOps.valid, p.ocmReadLatency)
-  loadPort.req.addr := hazardFreeOps.bits.id
+  val doLoad = opIdFork.outA.ready & opIdFork.outA.valid
 
-  // join operans for addition
-  val fxn = {(a: UInt, b: UInt) => SemiringOperands(p.opWidth, a, b)}
-  val addOpJoin = Module(new StreamJoin(opType, opType, syncOpType, fxn)).io
-  addOpJoin.inA <> opQ.deq
-  addOpJoin.inB.valid := loadValid
+  val loadValid = ShiftRegister(doLoad, p.ocmReadLatency)
+  loadPort.req.addr := opIdFork.outA.bits
+
+  val addOpJoin = Module(new StreamJoin(opType, opType, syncOpType, joinOpOp)).io
+  addOpJoin.inA <> Queue(opIdFork.outB, 2)
   addOpJoin.inB.bits := loadPort.rsp.readData
-  //addOpJoin.inB.bits.ready
+  addOpJoin.inB.valid := loadValid
+
   addOpJoin.out <> adder.io.in
-  // uncomment to debug adder inputs
-  //when(adder.io.in.valid) {printf("ADD %x + %x\n", adder.io.in.bits.first, adder.io.in.bits.second)}
 
-  // save adder output into contextStore (addr given by idQ)
-  val resultValid = adder.io.out.valid & idQ.deq.valid
-  savePort.req.writeEn := resultValid
-  savePort.req.addr := idQ.deq.bits
-  savePort.req.writeData := adder.io.out.bits
+  val idQDepth = adder.latency + p.ocmReadLatency + 1
+  val writeJoin = Module(new StreamJoin(opType, idType, opWidthIdType, joinOpId)).io
+  writeJoin.inA <> adder.io.out
+  writeJoin.inB <> Queue(opIdFork.outA, idQDepth)
 
-  // use enable as backpressure signal in several places
-  // idQ and adder streams proceed in lockstep
-  adder.io.out.ready := io.enable &  idQ.deq.valid
-  idQ.deq.ready := io.enable & adder.io.out.valid
+  val doWrite = writeJoin.out.valid & io.enable
+  writeJoin.out.ready := io.enable
+  savePort.req.writeEn := doWrite
+  savePort.req.writeData := writeJoin.out.bits.data
+  savePort.req.addr := writeJoin.out.bits.id
+
+  // TODO parametrize write latency
+  val writeComplete = ShiftRegister(doWrite, 1)
+
+  shadow.deq.ready := writeComplete
+
+  // TODO reimplement or remove
+  io.hazardStalls := UInt(0)
 
   // register for counting completed operations
   val regOpCount = Reg(init = UInt(0, 32))
@@ -87,8 +95,6 @@ class InterleavedReduceOCM(val p: SpMVAccelWrapperParams) extends Module {
   // TODO use "write complete" signal when available -- may be write latency
   when (!io.enable) {regOpCount := UInt(0)}
   .otherwise {
-    when (resultValid) {regOpCount := regOpCount + UInt(1)}
+    when (writeComplete) {regOpCount := regOpCount + UInt(1)}
   }
-
-  // TODO add more counters?
 }
