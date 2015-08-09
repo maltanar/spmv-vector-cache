@@ -5,7 +5,7 @@ import TidbitsAXI._
 import TidbitsStreams._
 import TidbitsOCM._
 
-class SpMVFrontend(val p: SpMVAccelWrapperParams) extends Module {
+class SpMVFrontendBufferAll(val p: SpMVAccelWrapperParams) extends Module {
   val opType = UInt(width=p.opWidth)
   val idType = UInt(width=p.ptrWidth)
   val oidType = new OperandWithID(p.opWidth, p.ptrWidth)

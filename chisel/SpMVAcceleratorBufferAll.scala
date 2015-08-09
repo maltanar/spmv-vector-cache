@@ -10,7 +10,7 @@ import java.nio.ByteBuffer
 import java.io.{FileInputStream, DataInputStream}
 
 
-class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
+class SpMVAcceleratorBufferAll(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
   override lazy val accelVersion: String = "alpha-5"
 
   // plug unused register file elems / set defaults
@@ -69,7 +69,7 @@ class SpMVAccelerator(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
   out.statBackend := Cat(statBackendL)
 
   // instantiate frontend
-  val frontendM = Module(new SpMVFrontend(p))
+  val frontendM = Module(new SpMVFrontendBufferAll(p))
   val frontend = frontendM.io
   frontend <> in
   out <> frontend
