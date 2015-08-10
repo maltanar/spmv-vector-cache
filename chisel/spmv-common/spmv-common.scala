@@ -31,7 +31,7 @@ class SpMVAccelWrapperParams(arg: List[String] = List()) extends BaseWrapperPara
   //val makeAdd: () => SemiringOp = {() => new StagedUIntOp(opWidth, 1, (a,b)=>a+b)}
   //val makeMul: () => SemiringOp = {() => new StagedUIntOp(opWidth, 1, (a,b)=>a*b)}
   val makeAdd: () => SemiringOp = {() => new DPAdder(4)}
-  val makeMul: () => SemiringOp = {() => new DPMultiplier(4)}
+  val makeMul: () => SemiringOp = {() => new DPMultiplier(8)}
 
   lazy val suffix: String = {
     (if(enableCMS) "cms-" else "") + ocmDepth.toString + "-" + issueWindow.toString
