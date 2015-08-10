@@ -81,7 +81,7 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
   out.statBackend := Cat(statBackendL)
 
   // instantiate frontend
-  val frontendM = Module(new SpMVFrontendNewCache(p))
+  val frontendM = if(p.enableNB) Module(new SpMVFrontendNBCache(p)) else Module(new SpMVFrontendNewCache(p))
   val frontend = frontendM.io
   frontend <> in
   out <> frontend

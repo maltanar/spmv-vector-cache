@@ -34,7 +34,9 @@ class SpMVAccelWrapperParams(arg: List[String] = List()) extends BaseWrapperPara
   val makeMul: () => SemiringOp = {() => new DPMultiplier(8)}
 
   lazy val suffix: String = {
-    (if(enableCMS) "cms-" else "") + ocmDepth.toString + "-" + issueWindow.toString
+    (if(enableCMS) "cms-" else "") +
+    (if(enableNB) "nb-" else "") +
+    ocmDepth.toString + "-" + issueWindow.toString
   }
 
   // try to find given key in args, return defVal otherwise
@@ -69,6 +71,7 @@ class SpMVAccelWrapperParams(arg: List[String] = List()) extends BaseWrapperPara
   val ocmWriteLatency = 1
   val ocmName = "WrapperBRAM"+opWidth.toString+"x"+ocmDepth.toString
   val enableCMS: Boolean = matchKey("enableCMS", false)
+  val enableNB: Boolean = matchKey("enableNB", false) // nonblocking cache
 }
 
 object isVerilog {
