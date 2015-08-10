@@ -66,16 +66,16 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   // instantiate 4xread request generators, one for each SpMV data channel
   val rqColPtr = Module(new ReadReqGen(pMem, idBase, p.colPtrBurstBeats)).io
   rqColPtr.ctrl.baseAddr := io.baseColPtr
-  rqColPtr.ctrl.byteCount := alignToMemWidth(colPtrBytes)
+  rqColPtr.ctrl.byteCount := alignToMemWidth(Reg(init=UInt(0,32), next=colPtrBytes))
   val rqRowInd = Module(new ReadReqGen(pMem, idBase+1, p.rowIndBurstBeats)).io
   rqRowInd.ctrl.baseAddr := io.baseRowInd
-  rqRowInd.ctrl.byteCount := alignToMemWidth(rowIndBytes)
+  rqRowInd.ctrl.byteCount := alignToMemWidth(Reg(init=UInt(0,32), next=rowIndBytes))
   val rqNZData = Module(new ReadReqGen(pMem, idBase+2, p.nzDataBurstBeats)).io
   rqNZData.ctrl.baseAddr := io.baseNZData
-  rqNZData.ctrl.byteCount := alignToMemWidth(nzBytes)
+  rqNZData.ctrl.byteCount := alignToMemWidth(Reg(init=UInt(0,32), next=nzBytes))
   val rqInputVec = Module(new ReadReqGen(pMem, idBase+3, p.inpVecBurstBeats)).io
   rqInputVec.ctrl.baseAddr := io.baseInputVec
-  rqInputVec.ctrl.byteCount := alignToMemWidth(inputVecBytes)
+  rqInputVec.ctrl.byteCount := alignToMemWidth(Reg(init=UInt(0,32), next=inputVecBytes))
   // connect read req generators to interleaver
   rqColPtr.reqs <> intl.reqIn(0)
   rqRowInd.reqs <> intl.reqIn(1)
@@ -83,10 +83,10 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   rqInputVec.reqs <> intl.reqIn(3)
   // read request threshold controls -- if FIFO level exceeds threshold,
   // throttle this read request generator to prevent clogging
-  rqColPtr.ctrl.throttle := (io.fbColPtr > io.thresColPtr)
-  rqRowInd.ctrl.throttle := (io.fbRowInd > io.thresRowInd)
-  rqNZData.ctrl.throttle := (io.fbNZData > io.thresNZData)
-  rqInputVec.ctrl.throttle := (io.fbInputVec > io.thresInputVec)
+  rqColPtr.ctrl.throttle := Reg(next=io.fbColPtr > io.thresColPtr)
+  rqRowInd.ctrl.throttle := Reg(next=io.fbRowInd > io.thresRowInd)
+  rqNZData.ctrl.throttle := Reg(next=io.fbNZData > io.thresNZData)
+  rqInputVec.ctrl.throttle := Reg(next=io.fbInputVec > io.thresInputVec)
 
   // define a 64-bit UInt type and filterFxn, useful for handling responses
   val filterFxn = {x: GenericMemoryResponse => x.readData}
