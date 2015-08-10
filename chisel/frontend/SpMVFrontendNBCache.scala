@@ -8,7 +8,6 @@ import TidbitsDMA._
 
 // frontend using a nonblocking vector cache
 // TODO:
-// - add OoO mark bit after read response
 // - put OoO-marked responses in different queue
 // - pops from appropriate queue upon shadow queue deq. match
 
@@ -139,13 +138,21 @@ class SpMVFrontendNBCache(val p: SpMVAccelWrapperParams) extends Module {
 
   val cacheReadJoin = Module(new StreamJoin(opWidthIdType, opType, opsAndId, joinOpIdOp)).io
   cacheReadJoin.inA <> cacheWaitReadQ.deq
-  val filterRspData = {x: NBCacheReadRsp => x.data}
-  cacheReadJoin.inB <> StreamFilter(cache.read.rsp, opType, filterRspData)
+
+  val nbRespType = new NBCacheReadRsp(p)
+  val forkNbOp = {x: NBCacheReadRsp => x.data}
+  val forkNbOrder = {x: NBCacheReadRsp => x.order}
+  val respFork = Module(new StreamFork(nbRespType, opType, Bool(), forkNbOp, forkNbOrder)).io
+  respFork.in <> cache.read.rsp
+  cacheReadJoin.inB <> respFork.outA
+
 
   val addFork = Module(new StreamFork(opsAndId, syncOpType, idType, forkOps, forkId)).io
   val adder = Module(p.makeAdd())
   val adderIdQ = Module(new Queue(idType, adder.latency)).io
   val addJoin = Module(new StreamJoin(opType, idType, opWidthIdType, joinOpId)).io
+  val flagQ = Module(new Queue(Bool(), 1+adder.latency)).io
+  flagQ.enq <> respFork.outB // response order flags
 
   cacheReadJoin.out <> addFork.in
   addFork.outA <> adder.io.in
@@ -155,9 +162,33 @@ class SpMVFrontendNBCache(val p: SpMVAccelWrapperParams) extends Module {
 
   cache.write.req <> addJoin.out
 
-  // pop from UniqueQueue with writeComplete and count ops
-  shadow.deq.ready := cache.writeComplete
+  // we have two retirement queues: hit and miss
+  // important that the hit retire queue is big enough,
+  // otherwise we might get deadlock
+  val shadowIdType = UInt(width = log2Up(p.ocmDepth))
+  val retireHQ = Module(new Queue(shadowIdType, p.issueWindow)).io
+  val retireMQ = Module(new Queue(shadowIdType, 2)).io
 
+  retireHQ.enq.valid := addJoin.out.valid & flagQ.deq.valid & flagQ.deq.bits
+  retireHQ.enq.bits := adderIdQ.deq.bits
+
+  retireMQ.enq.valid := addJoin.out.valid & flagQ.deq.valid & !flagQ.deq.bits
+  retireMQ.enq.bits := adderIdQ.deq.bits
+
+  // TODO backpressure can cause problems here!
+  flagQ.deq.ready := Bool(true)
+/*
+  TODO something here is causing infinite recursion -- bug?
+  val retireHMatch = (retireHQ.deq.bits === shadow.deq.bits) & retireHQ.deq.valid
+  val retireMMatch = (retireMQ.deq.bits === shadow.deq.bits) & retireMQ.deq.valid
+
+  // pop from appropriate queue when match
+  retireHQ.deq.ready := retireHMatch & shadow.deq.valid
+  retireMQ.deq.ready := retireMMatch & shadow.deq.valid
+
+  // also pop from shadow queue when there is a match
+  shadow.deq.ready := retireHMatch | retireMMatch
+*/
   // register for counting completed operations
   val regOpCount = Reg(init = UInt(0, 32))
 
