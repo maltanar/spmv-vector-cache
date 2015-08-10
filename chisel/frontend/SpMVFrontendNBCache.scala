@@ -139,7 +139,8 @@ class SpMVFrontendNBCache(val p: SpMVAccelWrapperParams) extends Module {
 
   val cacheReadJoin = Module(new StreamJoin(opWidthIdType, opType, opsAndId, joinOpIdOp)).io
   cacheReadJoin.inA <> cacheWaitReadQ.deq
-  cacheReadJoin.inB <> cache.read.rsp
+  val filterRspData = {x: NBCacheReadRsp => x.data}
+  cacheReadJoin.inB <> StreamFilter(cache.read.rsp, opType, filterRspData)
 
   val addFork = Module(new StreamFork(opsAndId, syncOpType, idType, forkOps, forkId)).io
   val adder = Module(p.makeAdd())

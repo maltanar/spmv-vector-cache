@@ -13,7 +13,7 @@ import TidbitsDMA._
 
 
 class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
-  val io = new SinglePortCacheIF(p)
+  val io = new NBCacheIF(p)
   val pOCM = new OCMParameters( p.ocmDepth*p.opWidth, p.opWidth, p.opWidth, 2,
                                 p.ocmReadLatency)
 
@@ -104,7 +104,8 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
 
   // cache read response
   io.read.rsp.valid := Bool(false)
-  io.read.rsp.bits := head.rspData
+  io.read.rsp.bits.data := head.rspData
+  io.read.rsp.bits.order := Bool(true) // TODO OoO
 
   // read miss replacement
   val regReadMissData = Reg(init = UInt(0, lineSize))
@@ -284,7 +285,7 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
       dataPortR.req.addr := head.ind
       // make read response available
       io.read.rsp.valid := Bool(true)
-      io.read.rsp.bits := regReadMissData
+      io.read.rsp.bits.data := regReadMissData
 
       when(io.read.rsp.ready) {
         // pop off pending miss from head

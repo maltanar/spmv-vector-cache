@@ -28,6 +28,22 @@ class CacheReadPortIF(p: SpMVAccelWrapperParams) extends Bundle {
   override def clone = { new CacheReadPortIF(p).asInstanceOf[this.type] }
 }
 
+class NBCacheReadRsp(p: SpMVAccelWrapperParams) extends Bundle {
+  val data = UInt(width=p.opWidth)
+  val order = Bool()
+
+  override def clone = {new NBCacheReadRsp(p).asInstanceOf[this.type]}
+}
+
+class NBCacheReadPortIF(p: SpMVAccelWrapperParams) extends Bundle {
+  // read request port
+  val req = Decoupled(UInt(width=p.ptrWidth)).flip
+  // read response data
+  val rsp = Decoupled(new NBCacheReadRsp(p))
+
+  override def clone = { new CacheReadPortIF(p).asInstanceOf[this.type] }
+}
+
 class CacheWritePortIF(p: SpMVAccelWrapperParams) extends Bundle {
   // write request port
   val req = Decoupled(new OperandWithID(p.opWidth, p.ptrWidth)).flip
@@ -58,4 +74,29 @@ class SinglePortCacheIF(val p: SpMVAccelWrapperParams) extends Bundle {
   val cacheState = UInt(OUTPUT, 32)
 
   override def clone = { new SinglePortCacheIF(p).asInstanceOf[this.type] }
+}
+
+class NBCacheIF(p: SpMVAccelWrapperParams) extends Bundle {
+  val read = new NBCacheReadPortIF(p)
+  val write = new CacheWritePortIF(p)
+
+  // interface towards main mem
+  val mem = new GenericMemoryMasterPort(p.toMRP())
+
+  val writeComplete = Bool(OUTPUT)
+
+  val base = UInt(INPUT, 32)
+  val startInit = Bool(INPUT)
+  val startWrite = Bool(INPUT)
+  val done = Bool(OUTPUT)
+
+  // init indicator and cache stat outputs
+  val readCount = UInt(OUTPUT, 32)
+  val readMissCount = UInt(OUTPUT, 32)
+  val writeCount = UInt(OUTPUT, 32)
+  val writeMissCount = UInt(OUTPUT, 32)
+  val conflictMissCount = UInt(OUTPUT, 32)
+  val cacheState = UInt(OUTPUT, 32)
+
+  override def clone = { new NBCacheIF(p).asInstanceOf[this.type] }
 }
