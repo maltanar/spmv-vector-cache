@@ -59,7 +59,7 @@ class TestSpMVFrontend() extends AXIWrappableAccel(TestSpMVFrontend.p) {
   override lazy val regMap = manageRegIO(in, out)
 
 
-  val frontendM = Module(new SpMVFrontend(TestSpMVFrontend.p))
+  val frontendM = Module(new SpMVFrontendBufferAll(TestSpMVFrontend.p))
   val frontend = frontendM.io
 
   // sequence generators on all backend inputs
