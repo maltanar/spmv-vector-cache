@@ -97,15 +97,16 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val readMiss = headValid & !(head.rspValid & (head.reqTag === head.rspTag))
 
   val regUnhandledMiss = Reg(init = tagRespType)
+  val regHandledMiss = Reg(init = tagRespType)
 
   // pending miss queue
-  val pendingMissQ = Module(new Queue(tagRespType, p.maxMiss)).io
-  pendingMissQ.enq.bits := head
-  pendingMissQ.enq.valid := Bool(false)
-  pendingMissQ.deq.ready := Bool(false)
+  val pendingDDRMissQ = Module(new Queue(tagRespType, p.maxMiss)).io
+  pendingDDRMissQ.enq.bits := regUnhandledMiss
+  pendingDDRMissQ.enq.valid := Bool(false)
+  pendingDDRMissQ.deq.ready := Bool(false)
 
-  val canAcceptMiss = pendingMissQ.enq.ready
-  val pendingMissHead = pendingMissQ.deq.bits
+  val canAcceptDDRMiss = pendingDDRMissQ.enq.ready
+  val pendingDDRMissHead = pendingDDRMissQ.deq.bits
 
   // cache read response
   io.read.rsp.bits.data := Cat(head.rspData, head.opData)
@@ -113,7 +114,7 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
 
   // read miss replacement
   val regReadMissData = Reg(init = UInt(0, lineSize))
-  tagPortR.req.writeData := Cat(pendingMissHead.reqTag, Bits("b1"))
+  tagPortR.req.writeData := Cat(regHandledMiss.reqTag, Bits("b1"))
   dataPortR.req.writeData := regReadMissData
   // write enables will be set by state machine
   tagPortR.req.writeEn := Bool(false)
@@ -211,18 +212,18 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
 
     is(sColdMiss) {
       val needEvict = regUnhandledMiss.rspValid
-      when(canAcceptMiss & (canDoExtWrite | needEvict)) {
+      when(canDoExtWrite | needEvict) {
         // write request only emitted on conflict miss (different valid tag)
         ddr.memWrReq.valid := needEvict
         ddr.memWrDat.valid := needEvict
         regReadMissCount := regReadMissCount + UInt(1)
         // special for cold miss handling: write 0 as cache data
         regReadMissData := UInt(0)
+        regHandledMiss := regUnhandledMiss
         // prevent new tag reads
         // TODO must start more in advance if tag read latency > 1
         queueHasRoom := Bool(false)
-        // put into miss queue
-        pendingMissQ.enq.valid := Bool(true)
+        // proceed to tag and response write
         regState := sReadMiss3
       }
     }
@@ -231,7 +232,7 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
       // wait until all pending writes are complete before proceeding with
       // read miss handling, plus place on the read/write queues
       val needEvict = regUnhandledMiss.rspValid
-      when(canAcceptMiss & noPendingWrites & canDoExtRead & (canDoExtWrite | !needEvict)) {
+      when(canAcceptDDRMiss & noPendingWrites & canDoExtRead & (canDoExtWrite | !needEvict)) {
         ddr.memRdReq.valid := Bool(true) // load the missing index
         // write request only emitted on conflict miss (different valid tag)
         ddr.memWrReq.valid := needEvict
@@ -239,17 +240,22 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
         // count miss
         regReadMissCount := regReadMissCount + UInt(1)
         // put into miss queue
-        pendingMissQ.enq.valid := Bool(true)
+        pendingDDRMissQ.enq.valid := Bool(true)
         // back to serving requests
         regState := sActive
       }
     }
 
     is(sReadMiss2) {
-      // wait for DDR read response and save it to regReadMissData
+      // wait for DDR read response
       ddr.memRdRsp.ready := Bool(true)
       when(ddr.memRdRsp.valid) {
+        // save response to regReadMissData
         regReadMissData := ddr.memRdRsp.bits.readData
+        // save the head of pending DDR miss to register
+        regHandledMiss := pendingDDRMissHead
+        // pop from pending miss queue
+        pendingDDRMissQ.deq.ready := Bool(true)
         // prevent new tag reads
         // TODO must start more in advance if tag read latency > 1
         queueHasRoom := Bool(false)
@@ -263,20 +269,18 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
       tagRespQ.deq.ready := Bool(false)
 
       // set addresses for tag and data write
-      tagPortR.req.addr := pendingMissHead.ind
-      dataPortR.req.addr := pendingMissHead.ind
+      tagPortR.req.addr := regHandledMiss.ind
+      dataPortR.req.addr := regHandledMiss.ind
       // make read response available
       io.read.rsp.valid := Bool(true)
 
-      io.read.rsp.bits.data := Cat(regReadMissData, pendingMissHead.opData)
-      io.read.rsp.bits.id := cacheAddr(pendingMissHead.reqTag, pendingMissHead.ind)
+      io.read.rsp.bits.data := Cat(regReadMissData, regHandledMiss.opData)
+      io.read.rsp.bits.id := cacheAddr(regHandledMiss.reqTag, regHandledMiss.ind)
 
       when(io.read.rsp.ready) {
         // update cache data and tag
         tagPortR.req.writeEn := Bool(true)
         dataPortR.req.writeEn := Bool(true)
-        // pop from pending miss queue
-        pendingMissQ.deq.ready := Bool(true)
         regState := sActive
       }
     }
