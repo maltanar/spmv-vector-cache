@@ -7,7 +7,6 @@ import TidbitsDMA._
 
 // TODO changes necessary for nonblocking cache (single pending miss):
 // - pop off and register pending miss upon entering handler
-// - add "out of order" bit to response (emitted with responses under pending miss)
 // - keep hit-based tagQ <> respQ connection during miss handler (except last state)
 // - push out (in-order) response for the pending miss in the last state
 
@@ -85,7 +84,6 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val qs: Int = 4
   val tagRespQ = Module(new Queue(tagRespType, qs)).io
   val qfree = UInt(qs)-tagRespQ.count
-  queueHasRoom := Bool(false)
   tagRespQ.enq.valid := regRdReqValid
   io.read.req.ready := queueHasRoom
   tagRespQ.enq.bits.ind := regRdReqInd
@@ -94,7 +92,6 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   tagRespQ.enq.bits.rspTag := rdCacheTag
   tagRespQ.enq.bits.rspValid := rdCacheValid
   tagRespQ.enq.bits.rspData := rdCacheData
-  tagRespQ.deq.ready := Bool(false)
 
   val headValid = tagRespQ.deq.valid
   val head = tagRespQ.deq.bits
@@ -103,7 +100,6 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val readMiss = headValid & !(head.rspValid & (head.reqTag === head.rspTag))
 
   // cache read response
-  io.read.rsp.valid := Bool(false)
   io.read.rsp.bits := head.rspData
 
   // read miss replacement
@@ -177,6 +173,11 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val canDoExtWrite = ddr.memWrReq.ready & ddr.memWrDat.ready
   val canDoExtRead = ddr.memRdReq.ready
 
+  queueHasRoom := (qfree > UInt(1))
+  // regular cache activity
+  tagRespQ.deq.ready := readHit & io.read.rsp.ready
+  io.read.rsp.valid := readHit
+
   switch(regState) {
     is(sActive) {
       regCacheInd := UInt(0)
@@ -191,11 +192,6 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
         if(p.enableCMS) {
           regState := Mux(head.reqCMS, sColdMiss, sReadMiss1)
         } else {regState := sReadMiss1}
-      } .otherwise {
-        queueHasRoom := (qfree > UInt(1))
-        // regular cache activity
-        tagRespQ.deq.ready := readHit & io.read.rsp.ready
-        io.read.rsp.valid := readHit
       }
     }
 
@@ -250,6 +246,9 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
         regReadMissCount := regReadMissCount + UInt(1)
         // special for cold miss handling: write 0 as cache data
         regReadMissData := UInt(0)
+        // prevent new tag reads
+        // TODO must start more in advance if tag read latency > 1
+        queueHasRoom := Bool(false)
         regState := sReadMiss3
       }
     }
@@ -274,11 +273,18 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
       ddr.memRdRsp.ready := Bool(true)
       when(ddr.memRdRsp.valid) {
         regReadMissData := ddr.memRdRsp.bits.readData
+        // prevent new tag reads
+        // TODO must start more in advance if tag read latency > 1
+        queueHasRoom := Bool(false)
         regState := sReadMiss3
       }
     }
 
     is(sReadMiss3) {
+      // prevent regular cache hit activity
+      queueHasRoom := Bool(false)
+      tagRespQ.deq.ready := Bool(false)
+
       // set addresses for tag and data write
       tagPortR.req.addr := head.ind
       dataPortR.req.addr := head.ind
