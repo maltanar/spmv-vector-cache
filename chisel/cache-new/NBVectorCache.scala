@@ -4,12 +4,9 @@ import Chisel._
 import TidbitsOCM._
 import TidbitsDMA._
 
-// TODO changes necessary for nonblocking cache (single pending miss):
-// - pop off and register pending miss upon entering handler
-
 
 class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
-  val io = new SinglePortCacheIF(p)
+  val io = new NBCacheIF(p)
   val pOCM = new OCMParameters( p.ocmDepth*p.opWidth, p.opWidth, p.opWidth, 2,
                                 p.ocmReadLatency)
 
@@ -52,9 +49,10 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   /////////////////////////// cache read port ///////////////////////////
   // cache read request shorthands
   val rdReqValid = io.read.req.valid
-  val rdReqTag = cacheTag(io.read.req.bits)
-  val rdReqInd = cacheInd(io.read.req.bits)
-  val rdReqRowStart = isStartOfRow(io.read.req.bits)
+  val rdReqTag = cacheTag(io.read.req.bits.id)
+  val rdReqInd = cacheInd(io.read.req.bits.id)
+  val rdReqRowStart = isStartOfRow(io.read.req.bits.id)
+  val rdReqOp = io.read.req.bits.data
 
   val queueHasRoom = Bool()
 
@@ -64,6 +62,7 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val regRdReqTag = Reg(next = rdReqTag)
   val regRdReqInd = Reg(next = rdReqInd)
   val regRdReqRowStart = Reg(next = rdReqRowStart)
+  val regRdReqOp = Reg(next = rdReqOp)
 
   // tag + data access for read port
   tagPortR.req.addr := rdReqInd
@@ -77,7 +76,7 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
 
   // tag response queue
   // TODO 2 is dependent on tag+data read latency (1) plus outstanding misses (1)?
-  val tagRespType = new FullTagResponse(indBitCount, tagBitCount, lineSize)
+  val tagRespType = new NBTagResponse(indBitCount, tagBitCount, lineSize)
   val qs: Int = 4
   val tagRespQ = Module(new Queue(tagRespType, qs)).io
   val qfree = UInt(qs)-tagRespQ.count
@@ -89,6 +88,7 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   tagRespQ.enq.bits.rspTag := rdCacheTag
   tagRespQ.enq.bits.rspValid := rdCacheValid
   tagRespQ.enq.bits.rspData := rdCacheData
+  tagRespQ.enq.bits.opData := regRdReqOp
 
   val headValid = tagRespQ.deq.valid
   val head = tagRespQ.deq.bits
@@ -99,7 +99,8 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val regPendingMiss = Reg(init = tagRespType)
 
   // cache read response
-  io.read.rsp.bits := head.rspData
+  io.read.rsp.bits.data := Cat(head.rspData, head.opData)
+  io.read.rsp.bits.id := cacheAddr(head.reqTag, head.ind)
 
   // read miss replacement
   val regReadMissData = Reg(init = UInt(0, lineSize))
@@ -293,7 +294,9 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
       dataPortR.req.addr := regPendingMiss.ind
       // make read response available
       io.read.rsp.valid := Bool(true)
-      io.read.rsp.bits := regReadMissData
+
+      io.read.rsp.bits.data := Cat(regReadMissData, regPendingMiss.opData)
+      io.read.rsp.bits.id := cacheAddr(regPendingMiss.reqTag, regPendingMiss.ind)
 
       when(io.read.rsp.ready) {
         // update cache data and tag

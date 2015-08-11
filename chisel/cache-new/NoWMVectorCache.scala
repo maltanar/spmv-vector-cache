@@ -4,19 +4,6 @@ import Chisel._
 import TidbitsOCM._
 import TidbitsDMA._
 
-class FullTagResponse(indBits: Int, tagBits: Int, dataBits: Int) extends Bundle {
-  val ind = UInt(width = indBits)
-  val reqCMS = Bool()
-  val reqTag = UInt(width = tagBits)
-  val rspTag = UInt(width = tagBits)
-  val rspValid = Bool()
-  val rspData = UInt(width = dataBits)
-
-  override def clone = {
-    new FullTagResponse(indBits, tagBits, dataBits).asInstanceOf[this.type]
-  }
-}
-
 class NoWMVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val io = new SinglePortCacheIF(p)
   val pOCM = new OCMParameters( p.ocmDepth*p.opWidth, p.opWidth, p.opWidth, 2,

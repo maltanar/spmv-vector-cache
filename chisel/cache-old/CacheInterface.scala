@@ -59,3 +59,65 @@ class SinglePortCacheIF(val p: SpMVAccelWrapperParams) extends Bundle {
 
   override def clone = { new SinglePortCacheIF(p).asInstanceOf[this.type] }
 }
+
+class FullTagResponse(indBits: Int, tagBits: Int, dataBits: Int) extends Bundle {
+  val ind = UInt(width = indBits)
+  val reqCMS = Bool()
+  val reqTag = UInt(width = tagBits)
+  val rspTag = UInt(width = tagBits)
+  val rspValid = Bool()
+  val rspData = UInt(width = dataBits)
+
+  override def clone = {
+    new FullTagResponse(indBits, tagBits, dataBits).asInstanceOf[this.type]
+  }
+}
+
+class NBCacheReadPortIF(p: SpMVAccelWrapperParams) extends Bundle {
+  // read request port
+  val req = Decoupled(new OperandWithID(p.opWidth, p.ptrWidth)).flip
+  // read response data
+  val rsp = Decoupled(new OperandWithID(2*p.opWidth, p.ptrWidth))
+
+  override def clone = { new NBCacheReadPortIF(p).asInstanceOf[this.type] }
+}
+
+class NBCacheIF(val p: SpMVAccelWrapperParams) extends Bundle {
+  // interface towards processing element:
+  val read = new NBCacheReadPortIF(p)
+  val write = new CacheWritePortIF(p)
+
+  // interface towards main mem
+  val mem = new GenericMemoryMasterPort(p.toMRP())
+
+  val writeComplete = Bool(OUTPUT)
+
+  val base = UInt(INPUT, 32)
+  val startInit = Bool(INPUT)
+  val startWrite = Bool(INPUT)
+  val done = Bool(OUTPUT)
+
+  // init indicator and cache stat outputs
+  val readCount = UInt(OUTPUT, 32)
+  val readMissCount = UInt(OUTPUT, 32)
+  val writeCount = UInt(OUTPUT, 32)
+  val writeMissCount = UInt(OUTPUT, 32)
+  val conflictMissCount = UInt(OUTPUT, 32)
+  val cacheState = UInt(OUTPUT, 32)
+
+  override def clone = { new NBCacheIF(p).asInstanceOf[this.type] }
+}
+
+class NBTagResponse(indBits: Int, tagBits: Int, dataBits: Int) extends Bundle {
+  val ind = UInt(width = indBits)
+  val reqCMS = Bool()
+  val reqTag = UInt(width = tagBits)
+  val rspTag = UInt(width = tagBits)
+  val rspValid = Bool()
+  val rspData = UInt(width = dataBits)
+  val opData = UInt(width = dataBits)
+
+  override def clone = {
+    new NBTagResponse(indBits, tagBits, dataBits).asInstanceOf[this.type]
+  }
+}
