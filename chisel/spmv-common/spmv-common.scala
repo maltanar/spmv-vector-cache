@@ -72,6 +72,7 @@ class SpMVAccelWrapperParams(arg: List[String] = List()) extends BaseWrapperPara
   val ocmName = "WrapperBRAM"+opWidth.toString+"x"+ocmDepth.toString
   val enableCMS: Boolean = matchKey("enableCMS", false)
   val enableNB: Boolean = matchKey("enableNB", false) // nonblocking cache
+  val maxMiss: Int = matchInt("maxMiss", 8)
 }
 
 object isVerilog {
