@@ -82,6 +82,7 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
 
   // instantiate frontend
   val frontendM = if(p.enableNB) Module(new SpMVFrontendNBCache(p)) else Module(new SpMVFrontendNewCache(p))
+  //val frontendM = Module(new SpMVFrontendNBCache(p))
   val frontend = frontendM.io
   frontend <> in
   out <> frontend
@@ -346,6 +347,9 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
       //printWhenTransactionAggr("waitReadOut", frontendM.cacheWaitReadQ.deq)
       //println("Queue: " +t.peek(frontendM.cacheM.tagRespQ.count).toString)
       //printWhenTransactionAggr("$wreq", frontendM.cache.write.req)
+
+      //printWhenTransaction("iwIn", frontendM.iw.in)
+      //printWhenTransaction("\t\tiwRm", frontendM.iw.rm)
     }
 
     def traceWrite() = {

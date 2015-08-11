@@ -10,8 +10,8 @@ import TidbitsDMA._
 
 // adapted from J. Bachrach's "Advanced Chisel" slides
 class CAMIO(entries: Int, addr_bits: Int, tag_bits: Int) extends Bundle {
-  val clear = Bool(INPUT)
   val clear_hit = Bool(INPUT)
+  val is_clear_hit = Bool(OUTPUT)
   val clear_tag = Bits(INPUT, tag_bits)
 
   val tag = Bits(INPUT, tag_bits)
@@ -20,8 +20,6 @@ class CAMIO(entries: Int, addr_bits: Int, tag_bits: Int) extends Bundle {
   val valid_bits = Bits(OUTPUT, entries)
   val write = Bool(INPUT)
   val write_tag = Bits(INPUT, tag_bits)
-  val write_addr = UInt(INPUT, addr_bits)
-  val free_addr = UInt(INPUT, addr_bits)
   val hasFree = Bool(OUTPUT)
 }
 
@@ -29,43 +27,48 @@ class CAM(entries: Int, tag_bits: Int) extends Module {
   val addr_bits = log2Up(entries)
   val io = new CAMIO(entries, addr_bits, tag_bits)
   val cam_tags = Mem(Bits(width = tag_bits), entries)
+  // valid (fullness) of each slot in the CAM
   val vb_array = Reg(init = Bits(0, entries))
-  when (io.write) {
-    vb_array := vb_array.bitSet(io.write_addr, Bool(true))
-    cam_tags(io.write_addr) := io.write_tag
-  }
+  // hit status for clearing
   val clearHits = Vec((0 until entries).map(i => vb_array(i) && cam_tags(i) === io.clear_tag))
+  io.is_clear_hit := clearHits.toBits.orR
 
-  when (io.clear) { vb_array := Bits(0, entries) }
-  .elsewhen (io.clear_hit) { vb_array := vb_array & ~(clearHits.toBits) }
+  // index of first free slot in the CAM (least significant first)
+  val freeLocation = PriorityEncoder(~vb_array)
+  // whether there are any free slots at all
+  io.hasFree := orR(~vb_array)
+
+  // produce masks to allow simultaneous write+clear
+  val writeMask = Mux(io.write, UIntToOH(freeLocation), Bits(0, entries))
+  val clearMask = Mux(io.clear_hit, ~(clearHits.toBits), ~Bits(0, entries))
+
+  vb_array := (vb_array | writeMask) & clearMask
+
+  when (io.write) { cam_tags(freeLocation) := io.write_tag }
 
   val hits = (0 until entries).map(i => vb_array(i) && cam_tags(i) === io.tag)
   io.valid_bits := vb_array
   io.hits := Vec(hits).toBits
   io.hit := io.hits.orR
-
-  io.free_addr := PriorityEncoder(~vb_array)
-  io.hasFree := orR(~vb_array)
 }
 
 class IssueWindow(entries: Int, tag_bits: Int) extends Module {
   val io = new Bundle {
-    val in = Decoupled(new OperandWithID(1, tag_bits)).flip
-    val rmTag = UInt(INPUT, tag_bits)
-    val rmValid = Bool(INPUT)
+    val in = Decoupled(UInt(width=tag_bits)).flip
+    val rm = Decoupled(UInt(width=tag_bits)).flip
   }
 
   val cam = Module(new CAM(entries, tag_bits)).io
   // removal logic
-  cam.clear := Bool(false)
-  cam.clear_hit := io.rmValid
-  cam.clear_tag := io.rmTag
+  cam.clear_hit := io.rm.valid
+  cam.clear_tag := io.rm.bits
+  io.rm.ready := cam.is_clear_hit
+
   // insertion logic
-  cam.tag := io.in.bits.id
+  cam.tag := io.in.bits
   val canInsert = cam.hasFree & !cam.hit
   io.in.ready := canInsert
-  cam.write_addr := cam.free_addr
-  cam.write_tag := io.in.bits.id
+  cam.write_tag := io.in.bits
   cam.write := canInsert & io.in.valid
 }
 
@@ -178,14 +181,13 @@ class SpMVFrontendNBCache(val p: SpMVAccelWrapperParams) extends Module {
   io.conflictMissCount := cache.conflictMissCount
   io.cacheState := cache.cacheState
 
-  // CATCH: shadow queue is narrow for NoWMVectorCache, essentially using the
-  // cacheline index bits of the element index as the comparison key
-  // this prevents operands that map to the same cacheline from entering
-  val shadow = Module(new UniqueQueue(1, log2Up(p.ocmDepth), p.issueWindow)).io
-  val cacheEntry = Module(new StreamFork(opWidthIdType, opWidthIdType, shadowType,
-                      forkAll, forkShadow)).io
+  val iwTagBits = log2Up(p.ocmDepth)
+  val iw = Module(new IssueWindow(p.issueWindow, iwTagBits)).io
+
+  val cacheEntry = Module(new StreamFork(opWidthIdType, opWidthIdType, idType,
+                      forkAll, forkId)).io
   cacheEntry.in <> redJoin.out
-  cacheEntry.outB <> shadow.enq
+  cacheEntry.outB <> iw.in
 
   val cacheReadFork = Module(new StreamFork(opWidthIdType, opWidthIdType, idType, forkAll, forkId)).io
   cacheEntry.outA <> cacheReadFork.in
@@ -211,13 +213,13 @@ class SpMVFrontendNBCache(val p: SpMVAccelWrapperParams) extends Module {
 
   cache.write.req <> addJoin.out
 
-  // pop from UniqueQueue with writeComplete and count ops
-  shadow.deq.ready := cache.writeComplete
+  iw.rm.valid := Reg(next=cache.write.req.valid & cache.write.req.ready)
+  iw.rm.bits := Reg(next=cache.write.req.bits.id(iwTagBits-1,0))
 
   // register for counting completed operations
   val regOpCount = Reg(init = UInt(0, 32))
 
-  val completedOp = shadow.deq.ready & shadow.deq.valid
+  val completedOp = iw.rm.valid & iw.rm.ready
 
   when (!io.startRegular) {regOpCount := UInt(0)}
   .otherwise {when (completedOp) {regOpCount := regOpCount + UInt(1)}}
@@ -225,5 +227,5 @@ class SpMVFrontendNBCache(val p: SpMVAccelWrapperParams) extends Module {
   // use op count to drive the doneRegular signal
   io.doneRegular := (regOpCount === io.numNZ)
 
-  io.hazardStalls := Counter32Bit(shadow.hazard)
+  io.hazardStalls := UInt(255)
 }
