@@ -190,7 +190,7 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
       .elsewhen(readMiss) {
         // pull out the miss into register
         regPendingMiss := head
-        //tagRespQ.deq.valid := Bool(true)
+        tagRespQ.deq.ready := Bool(true)
 
         if(p.enableCMS) {
           regState := Mux(head.reqCMS, sColdMiss, sReadMiss1)
@@ -284,7 +284,7 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
     }
 
     is(sReadMiss3) {
-      // prevent regular cache hit activity
+      // prevent regular cache hit activity + tag reads
       queueHasRoom := Bool(false)
       tagRespQ.deq.ready := Bool(false)
 
@@ -296,9 +296,6 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
       io.read.rsp.bits := regReadMissData
 
       when(io.read.rsp.ready) {
-        // pop off pending miss from head
-        // since we are in a read miss, we know it's valid for sure, no check
-        tagRespQ.deq.ready := Bool(true)
         // update cache data and tag
         tagPortR.req.writeEn := Bool(true)
         dataPortR.req.writeEn := Bool(true)
