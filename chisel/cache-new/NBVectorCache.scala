@@ -3,7 +3,65 @@ package SpMVAccel
 import Chisel._
 import TidbitsOCM._
 import TidbitsDMA._
+import TidbitsStreams._
 
+class SearchableQueue(w: Int, entries: Int) extends Module {
+  val io = new Bundle {
+    val enq = Decoupled(UInt(width=w)).flip
+    val deq = Decoupled(UInt(width=w))
+    val search = UInt(INPUT, width=w)
+    val found = Bool(OUTPUT)
+    val count = UInt(OUTPUT, width = log2Up(entries+1))
+  }
+  // mostly copied from Chisel Queue, with a few modifications:
+  // - vector of registers instead of Mem, to expose all outputs
+
+  val ram = Vec.fill(entries) { Reg(init = UInt(0, w)) }
+  val ramValid = Vec.fill(entries) { Reg(init = Bool(false)) }
+
+  val enq_ptr = Counter(entries)
+  val deq_ptr = Counter(entries)
+  val maybe_full = Reg(init=Bool(false))
+
+  val ptr_match = enq_ptr.value === deq_ptr.value
+  val empty = ptr_match && !maybe_full
+  val full = ptr_match && maybe_full
+
+  val do_enq = io.enq.ready && io.enq.valid
+  val do_deq = io.deq.ready && io.deq.valid
+  when (do_enq) {
+    ram(enq_ptr.value) := io.enq.bits
+    ramValid(enq_ptr.value) := Bool(true)
+    enq_ptr.inc()
+  }
+  when (do_deq) {
+    ramValid(deq_ptr.value) := Bool(false)
+    deq_ptr.inc()
+  }
+  when (do_enq != do_deq) {
+    maybe_full := do_enq
+  }
+
+  // <search logic>
+  val hits = Vec.tabulate(entries) {i: Int => ram(i) === io.search & ramValid(i)}
+  io.found := hits.exists({x:Bool => x})
+  // </search logic>
+
+  io.deq.valid := !empty
+  io.enq.ready := !full
+  io.deq.bits := ram(deq_ptr.value)
+
+  val ptr_diff = enq_ptr.value - deq_ptr.value
+  if (isPow2(entries)) {
+    io.count := Cat(maybe_full && ptr_match, ptr_diff)
+  } else {
+    io.count := Mux(ptr_match,
+                  Mux(maybe_full, UInt(entries), UInt(0)),
+                  Mux(deq_ptr.value > enq_ptr.value,
+                      UInt(entries) + ptr_diff, ptr_diff)
+                    )
+  }
+}
 
 class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   val io = new NBCacheIF(p)
@@ -33,18 +91,6 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
 
   // registers for keeping statistics
   val regReadMissCount = Reg(init = UInt(0, 32))
-
-  // in-flight DDR write tracking logic
-  def txn[T <: Data](intf: DecoupledIO[T]): Bool = {intf.ready & intf.valid}
-  val regPendingWrites = Reg(init = UInt(0, 4))
-  // always ready to accept write responses
-  ddr.memWrRsp.ready := Bool(true)
-  val wReqTxn = txn(ddr.memWrReq)
-  val wRspTxn = txn(ddr.memWrRsp)
-  val noPendingWrites = (regPendingWrites === UInt(0))
-  // keep track of # DDR writes in flight
-  when(wReqTxn & !wRspTxn) {regPendingWrites := regPendingWrites + UInt(1)}
-  .elsewhen(!wReqTxn & wRspTxn) {regPendingWrites := regPendingWrites - UInt(1)}
 
   /////////////////////////// cache read port ///////////////////////////
   // cache read request shorthands
@@ -172,6 +218,29 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   // the only DDR write data is the evicted data
   ddr.memWrDat.bits := evictData
 
+
+  /////////////////////////////////////////////////////////////////////////////
+  // in-flight DDR write tracking logic
+  def txn[T <: Data](intf: DecoupledIO[T]): Bool = {intf.ready & intf.valid}
+  // always ready to accept write responses
+  ddr.memWrRsp.ready := Bool(true)
+  val wReqTxn = txn(ddr.memWrReq)
+  val wRspTxn = txn(ddr.memWrRsp)
+  val writeTxnQ = Module(new SearchableQueue(addrBits, 8)).io
+
+  writeTxnQ.enq.bits := evictLocation
+  writeTxnQ.enq.valid := Bool(false)
+  writeTxnQ.deq.ready := wRspTxn
+  writeTxnQ.search := missLocation
+
+  val regPendingWrites = Reg(init = UInt(0, 4))
+  val noPendingWrites = (regPendingWrites === UInt(0))
+  // keep track of # DDR writes in flight
+  when(wReqTxn & !wRspTxn) {regPendingWrites := regPendingWrites + UInt(1)}
+  .elsewhen(!wReqTxn & wRspTxn) {regPendingWrites := regPendingWrites - UInt(1)}
+  /////////////////////////////////////////////////////////////////////////////
+
+
   // cache control state machine
   val sActive :: sFill :: sFlush :: sDone :: sReadMiss1 :: sReadMiss2 :: sReadMiss3 :: sColdMiss :: Nil = Enum(UInt(), 8)
   val regState = Reg(init = UInt(sActive))
@@ -188,6 +257,10 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
   tagRespQ.deq.ready := readHit & io.read.rsp.ready
   io.read.rsp.valid := readHit
 
+  val needEvict = regUnhandledMiss.rspValid
+  val writeOK = !needEvict | (writeTxnQ.enq.ready & canDoExtWrite)
+  val readOK = canDoExtRead & canAcceptDDRMiss & !writeTxnQ.found
+
   switch(regState) {
     is(sActive) {
       regCacheInd := UInt(0)
@@ -199,23 +272,27 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
       }
       .elsewhen (io.startInit) {regState := sFill}
       .elsewhen (ddr.memRdRsp.valid) {regState := sReadMiss2}
-      .elsewhen (readMiss) {
+      .elsewhen (readMiss & head.reqCMS) {
         // pull out the miss into register
         regUnhandledMiss := head
         tagRespQ.deq.ready := Bool(true)
-
-        if(p.enableCMS) {
-          regState := Mux(head.reqCMS, sColdMiss, sReadMiss1)
-        } else {regState := sReadMiss1}
+        regState := sColdMiss
+      }
+      .elsewhen (readMiss & canDoExtRead & canAcceptDDRMiss) {
+        // pull out the miss into register
+        regUnhandledMiss := head
+        tagRespQ.deq.ready := Bool(true)
+        regState := sReadMiss1
       }
     }
 
     is(sColdMiss) {
-      val needEvict = regUnhandledMiss.rspValid
-      when(canDoExtWrite | needEvict) {
+      // cold miss does not need a DDR read, so we don't check readOK
+      when(writeOK) {
         // write request only emitted on conflict miss (different valid tag)
         ddr.memWrReq.valid := needEvict
         ddr.memWrDat.valid := needEvict
+        writeTxnQ.enq.valid := needEvict
         regReadMissCount := regReadMissCount + UInt(1)
         // special for cold miss handling: write 0 as cache data
         regReadMissData := UInt(0)
@@ -229,14 +306,12 @@ class NBVectorCache(val p: SpMVAccelWrapperParams) extends Module {
     }
 
     is(sReadMiss1) {
-      // wait until all pending writes are complete before proceeding with
-      // read miss handling, plus place on the read/write queues
-      val needEvict = regUnhandledMiss.rspValid
-      when(canAcceptDDRMiss & noPendingWrites & canDoExtRead & (canDoExtWrite | !needEvict)) {
+      when(readOK & writeOK) {
         ddr.memRdReq.valid := Bool(true) // load the missing index
         // write request only emitted on conflict miss (different valid tag)
         ddr.memWrReq.valid := needEvict
         ddr.memWrDat.valid := needEvict
+        writeTxnQ.enq.valid := needEvict
         // count miss
         regReadMissCount := regReadMissCount + UInt(1)
         // put into miss queue
