@@ -20,6 +20,50 @@ testSuite=["Williams/pdb1HYS", "Williams/consph", "Williams/cant",
            "Williams/mac_econ_fwd500", "Williams/cop20k_A", 
            "Williams/webbase-1M", "Williams/mc2depi", "Hamm/scircuit"]
 
+
+def getRowStarts(matrix, reverse):
+  rows = matrix.shape[0]
+  nnz = matrix.nnz
+  seen = [0 for i in range(rows)]
+  isRowStart = [0 for i in range(nnz)]
+  for e in range(nnz):
+    nzind = e if not reverse else (nnz-1-e)
+    rowind = matrix.indices[nzind]
+    if seen[rowind] == 0:
+      seen[rowind] = 1
+      isRowStart[nzind] = 1
+  return isRowStart
+  
+
+def getMaxAliveRows(name):
+  A = loadMatrix(name)
+  isRowStart = getRowStarts(A, False)
+  isRowEnd = getRowStarts(A, True)
+  maxAlive = 0
+  currentAlive = 0
+  for e in range(A.nnz):
+    currentAlive = currentAlive + isRowStart[e] - isRowEnd[e]
+    maxAlive=max(maxAlive, currentAlive)
+  return maxAlive
+    
+
+# Helper functions for getting first/last elem ind in row/col
+def firstIndexIn(matrix, rowOrCol):
+  return matrix.indices[matrix.indptr[rowOrCol]]
+def lastIndexIn(matrix, rowOrCol):
+  return matrix.indices[matrix.indptr[rowOrCol+1]-1]       
+
+def getMaxColSpan(matrix):
+  csc = loadMatrix(matrix)
+  # make sure the indices are sorted
+  csc.sort_indices()
+  maxColSpan = 0
+  for i in range(0, len(csc.indptr)-1):
+      currentColSpan = lastIndexIn(csc,i) - firstIndexIn(csc,i)
+      maxColSpan = max(currentColSpan, maxColSpan)
+  return maxColSpan
+    
+
 # prepare all matrices in the test suite
 def prepareTestSuite():
     map(lambda x: prepareUFLMatrix(x), testSuite)
