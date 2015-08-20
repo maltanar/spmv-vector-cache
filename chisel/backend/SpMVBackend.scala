@@ -122,10 +122,17 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   // read request threshold controls -- if requests exceeds FIFO capacity,
   // throttle this read request generator to prevent clogging
   // TODO parametrize this 2 as the memWidth/ptr ratio
-  rqColPtr.ctrl.throttle := Reg(next=UInt(2)*channelReqsInFlight(0) >= (UInt(p.colPtrFIFODepth)-io.fbColPtr))
-  rqRowInd.ctrl.throttle := Reg(next=UInt(2)*channelReqsInFlight(1) >= (UInt(p.rowIndFIFODepth)-io.fbRowInd))
-  rqNZData.ctrl.throttle := Reg(next=channelReqsInFlight(2) >= (UInt(p.nzDataFIFODepth)-io.fbNZData))
-  rqInputVec.ctrl.throttle := Reg(next=channelReqsInFlight(3) >= (UInt(p.inpVecFIFODepth)-io.fbInputVec))
+
+  val colPtrFree = Mux(io.fbColPtr < io.thresColPtr, UInt(p.colPtrFIFODepth)-io.fbColPtr, UInt(0))
+  val rowIndFree = Mux(io.fbRowInd < io.thresRowInd, UInt(p.rowIndFIFODepth)-io.fbRowInd, UInt(0))
+  val nzDataFree = Mux(io.fbNZData < io.thresNZData, UInt(p.nzDataFIFODepth)-io.fbNZData, UInt(0))
+  val inputVecFree = Mux(io.fbInputVec < io.thresInputVec, UInt(p.inpVecFIFODepth)-io.fbInputVec, UInt(0))
+
+
+  rqColPtr.ctrl.throttle := Reg(next=UInt(2)*channelReqsInFlight(0) >= colPtrFree)
+  rqRowInd.ctrl.throttle := Reg(next=UInt(2)*channelReqsInFlight(1) >= rowIndFree)
+  rqNZData.ctrl.throttle := Reg(next=channelReqsInFlight(2) >= nzDataFree)
+  rqInputVec.ctrl.throttle := Reg(next=channelReqsInFlight(3) >= inputVecFree)
 
 
   // instantiate write req gen
