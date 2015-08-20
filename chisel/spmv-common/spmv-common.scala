@@ -8,7 +8,7 @@ class BaseWrapperParams() extends AXIAccelWrapperParams(
   addrWidth = 32,
   csrDataWidth = 32,
   memDataWidth = 64,
-  idWidth = 6,
+  idWidth = 5,
   numRegs = 32,
   numMemPorts = 2)
 
