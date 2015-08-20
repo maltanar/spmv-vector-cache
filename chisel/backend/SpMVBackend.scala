@@ -81,12 +81,6 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   rqRowInd.reqs <> intl.reqIn(1)
   rqNZData.reqs <> intl.reqIn(2)
   rqInputVec.reqs <> intl.reqIn(3)
-  // read request threshold controls -- if FIFO level exceeds threshold,
-  // throttle this read request generator to prevent clogging
-  rqColPtr.ctrl.throttle := Reg(next=io.fbColPtr > io.thresColPtr)
-  rqRowInd.ctrl.throttle := Reg(next=io.fbRowInd > io.thresRowInd)
-  rqNZData.ctrl.throttle := Reg(next=io.fbNZData > io.thresNZData)
-  rqInputVec.ctrl.throttle := Reg(next=io.fbInputVec > io.thresInputVec)
 
   // define a 64-bit UInt type and filterFxn, useful for handling responses
   val filterFxn = {x: GenericMemoryResponse => x.readData}
@@ -108,6 +102,31 @@ class SpMVBackend(val p: SpMVAccelWrapperParams, val idBase: Int) extends Module
   io.rowIndOut <> StreamLimiter(StreamDownsizer(readData(1), p.ptrWidth), io.startRegular, rowIndBytes)
   io.nzDataOut <> StreamLimiter(readData(2), io.startRegular, nzBytes)
   io.inputVecOut <> StreamLimiter(readData(3), io.startRegular, inputVecBytes)
+
+  // TODO parametrize this as bytes instead
+  // keep track of in-flight requests (each request = 8 bytes here)
+  val channelReqsInFlight = Vec.fill(4){ Reg(init = UInt(0,32)) }
+  // transaction indicators for requests/responses on channel i
+  def newReq(i: Int): Bool = { intl.reqIn(i).valid & intl.reqIn(i).ready }
+  def newRsp(i: Int): Bool = { deintl.io.rspOut(i).valid & deintl.io.rspOut(i).ready }
+  // update in-flight req. count for each channel
+  for(i <- 0 until 4) {
+    // new requests (derived from burst length of the request)
+    val reqB = Mux(newReq(i), intl.reqIn(i).bits.numBytes >> UInt(3), UInt(0))
+    // new responses (max 1 response at a time)
+    val rspB = Mux(newRsp(i), UInt(1), UInt(0) )
+    // update in-flight requests
+    channelReqsInFlight(i) := channelReqsInFlight(i) + reqB - rspB
+  }
+
+  // read request threshold controls -- if requests exceeds FIFO capacity,
+  // throttle this read request generator to prevent clogging
+  // TODO parametrize this 2 as the memWidth/ptr ratio
+  rqColPtr.ctrl.throttle := Reg(next=UInt(2)*channelReqsInFlight(0) >= (UInt(p.colPtrFIFODepth)-io.fbColPtr))
+  rqRowInd.ctrl.throttle := Reg(next=UInt(2)*channelReqsInFlight(1) >= (UInt(p.rowIndFIFODepth)-io.fbRowInd))
+  rqNZData.ctrl.throttle := Reg(next=channelReqsInFlight(2) >= (UInt(p.nzDataFIFODepth)-io.fbNZData))
+  rqInputVec.ctrl.throttle := Reg(next=channelReqsInFlight(3) >= (UInt(p.inpVecFIFODepth)-io.fbInputVec))
+
 
   // instantiate write req gen
   val rqWrite = Module(new WriteReqGen(pMem, idBase+4)).io
