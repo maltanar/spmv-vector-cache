@@ -161,6 +161,7 @@ def permuteLongestRowFirst(matrix):
 # load matrix from local file system (Matrix Market format file must exist
 # under localRoot)
 def loadMatrix(name):
+  name=name.split("/").pop()
   fileName=localRoot+"/"+name+".mtx"
   if os.path.exists(fileName):
     return ios.mmread(fileName).tocsc()
