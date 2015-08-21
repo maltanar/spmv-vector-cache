@@ -65,6 +65,14 @@ class SpMVAcceleratorBufferAll(p: SpMVAccelWrapperParams) extends AXIWrappableAc
   // memory ports
   backend.mp0 <> io.mp(0)
   backend.mp1 <> io.mp(1)
+  // no random access needed from the BufferAll backend
+  backend.randAcc.memWrReq.valid := Bool(false)
+  backend.randAcc.memRdReq.valid := Bool(false)
+  backend.randAcc.memWrDat.valid := Bool(false)
+  backend.randAcc.memWrRsp.ready := Bool(false)
+  backend.randAcc.memRdRsp.ready := Bool(false)
+
+
   val hasDecErr = (backend.decodeErrors != UInt(0))
   val statBackendL = List(hasDecErr, backend.doneWrite, backend.doneRegular)
   out.statBackend := Cat(statBackendL)

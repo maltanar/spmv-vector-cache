@@ -43,6 +43,8 @@ class SpMVBackendTwoPort(val p: SpMVAccelWrapperParams, val idBase: Int) extends
     // memory port access for the backend
     val mp0 = new GenericMemoryMasterPort(pMem)
     val mp1 = new GenericMemoryMasterPort(pMem)
+    // random access port for the frontend
+    val randAcc = new GenericMemorySlavePort(pMem)
   }
   val oprBytes = UInt(p.opWidth/8)
   val ptrBytes = UInt(p.ptrWidth/8)
@@ -79,14 +81,6 @@ class SpMVBackendTwoPort(val p: SpMVAccelWrapperParams, val idBase: Int) extends
   val filterFxn = {x: GenericMemoryResponse => x.readData}
   val genO = UInt(width=64)
 
-  // nzdata lives on its own memory port
-  val rqNZData = Module(new ReadReqGen(pMem, idBase+3, p.nzDataBurstBeats)).io
-  rqNZData.ctrl.baseAddr := io.baseNZData
-  rqNZData.ctrl.byteCount := alignToMemWidth(Reg(init=UInt(0,32), next=nzBytes))
-  rqNZData.reqs <> io.mp1.memRdReq
-  io.nzDataOut <> StreamLimiter(StreamFilter(io.mp1.memRdRsp, genO, filterFxn), io.startRegular, nzBytes)
-
-
   // instantiate deinterleaver
   val deintl = Module(new QueuedDeinterleaver(3, pMem, 4) {
     // adjust deinterleaver routing function -- depends on baseId
@@ -116,6 +110,33 @@ class SpMVBackendTwoPort(val p: SpMVAccelWrapperParams, val idBase: Int) extends
   wrCompl.start := io.startWrite
   wrCompl.byteCount := outputVecBytes
 
+  // ======================== nz data and rand.acc. logic ======================
+  // randAcc gets the entire write part of memory port 1
+  io.mp1.memWrReq <> io.randAcc.memWrReq
+  io.mp1.memWrDat <> io.randAcc.memWrDat
+  io.mp1.memWrRsp <> io.randAcc.memWrRsp
+
+  // request interleaver for mixing read reqs from nz and randAcc
+  val randAccIntl = Module(new ReqInterleaver(2, pMem)).io
+  randAccIntl.reqOut <> io.mp1.memRdReq
+  // TODO use baseId for nz data req and randAcc too
+  val rqNZData = Module(new ReadReqGen(pMem, 1, p.nzDataBurstBeats)).io
+  rqNZData.ctrl.baseAddr := io.baseNZData
+  rqNZData.ctrl.byteCount := alignToMemWidth(Reg(init=UInt(0,32), next=nzBytes))
+  // TODO this assumes randAcc always uses read req id 0
+  randAccIntl.reqIn(0) <> io.randAcc.memRdReq
+  randAccIntl.reqIn(1) <> rqNZData.reqs
+
+  // deinterleaver for nzdata and randAcc
+  val randAccDeintl = Module(new QueuedDeinterleaver(2, pMem, 4) {
+    override lazy val routeFxn = {x:UInt => x}
+  })
+  randAccDeintl.io.rspIn <> io.mp1.memRdRsp
+  randAccDeintl.io.rspOut(0) <> io.randAcc.memRdRsp
+  io.nzDataOut <> StreamLimiter(StreamFilter(randAccDeintl.io.rspOut(1), genO, filterFxn), io.startRegular, nzBytes)
+
+  // ========================= completion/status logic =========================
+
   // wire control + status
   val regularComps = List(rqColPtr, rqRowInd, rqInputVec, rqNZData)
   val writeComps = List(rqWrite)
@@ -130,15 +151,15 @@ class SpMVBackendTwoPort(val p: SpMVAccelWrapperParams, val idBase: Int) extends
 
   io.backendDebug := Cat(regularComps.map(x=>x.stat.finished) ++ List(wrCompl.finished))
 
+
   // ======================= backend throttling logic ==========================
-  val chanResps = List()
   // TODO parametrize this as bytes instead
   // keep track of in-flight requests (each request = 8 bytes here)
-  val channelReqsInFlight = Vec.fill(4){ Reg(init = UInt(0,32)) }
+  val channelReqsInFlight = Vec.fill(4){ Reg(init = UInt(0, 32)) }
   // transaction indicators for requests/responses on channel i
   def newReq(i: Int): Bool = { regularComps(i).reqs.valid & regularComps(i).reqs.ready }
   def newRsp(i: Int): Bool = {
-    if(i == 3) { io.mp1.memRdRsp.ready & io.mp1.memRdRsp.valid }
+    if(i == 3) { io.nzDataOut.ready & io.nzDataOut.valid }
     else { deintl.io.rspOut(i).valid & deintl.io.rspOut(i).ready }
   }
   // update in-flight req. count for each channel
