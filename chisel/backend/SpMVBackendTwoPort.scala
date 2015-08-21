@@ -124,7 +124,7 @@ class SpMVBackendTwoPort(val p: SpMVAccelWrapperParams, val idBase: Int) extends
   rqNZData.ctrl.baseAddr := io.baseNZData
   rqNZData.ctrl.byteCount := alignToMemWidth(Reg(init=UInt(0,32), next=nzBytes))
   // TODO this assumes randAcc always uses read req id 0
-  randAccIntl.reqIn(0) <> io.randAcc.memRdReq
+  randAccIntl.reqIn(0) <> Queue(io.randAcc.memRdReq, 2)
   randAccIntl.reqIn(1) <> rqNZData.reqs
 
   // deinterleaver for nzdata and randAcc

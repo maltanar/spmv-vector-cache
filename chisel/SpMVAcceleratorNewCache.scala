@@ -67,7 +67,7 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
   out.issueWindow := UInt(p.issueWindow)
 
   // instantiate backend, connect memory port
-  val backend = Module(new SpMVBackend(p, 0) {
+  val backend = Module(new SpMVBackendTwoPort(p, 0) {
     // backend does not do output vec writes (cache has its own port)
     override lazy val outputVecBytes = UInt(0, 32)
     }).io
@@ -75,7 +75,8 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
   // produces warnings, but should work fine
   backend <> in
   // memory ports
-  backend <> io.mp(0)
+  backend.mp0 <> io.mp(0)
+  backend.mp1 <> io.mp(1)
   val hasDecErr = (backend.decodeErrors != UInt(0))
   val statBackendL = List(hasDecErr, backend.doneWrite, backend.doneRegular)
   out.statBackend := Cat(statBackendL)
@@ -86,7 +87,7 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
   val frontend = frontendM.io
   frontend <> in
   out <> frontend
-  frontend.mp <> io.mp(1)
+  frontend.mp <> backend.randAcc
   // frontend stats
   val statFrontendL = List(frontend.doneInit, frontend.doneWrite, frontend.doneRegular)
   out.statFrontend := Cat(Bool(p.enableCMS), Cat(statFrontendL))
