@@ -56,12 +56,15 @@ class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableA
   out.debug := UInt(0)
 
   // instantiate backend, connect memory port
-  val backend = Module(new SpMVBackend(p, 0)).io
+  val backend = Module(new SpMVBackendTwoPort(p, 0)).io
   // use partial interface fulfilment to connect backend interfaces
   // produces warnings, but should work fine
   backend <> in
   // memory ports
-  backend <> io.mp(0)
+  backend.mp0 <> io.mp(0)
+  backend.mp1 <> io.mp(1)
+
+
   val hasDecErr = (backend.decodeErrors != UInt(0))
   val statBackendL = List(hasDecErr, backend.doneWrite, backend.doneRegular)
   out.statBackend := Cat(statBackendL)
@@ -71,7 +74,9 @@ class SpMVAcceleratorBufferNone(p: SpMVAccelWrapperParams) extends AXIWrappableA
   val frontend = frontendM.io
   frontend <> in
   out <> frontend
-  frontend.mp <> io.mp(1)
+  // backend provides random accesses for frontend
+  backend.randAcc <> frontend.mp
+
   // frontend stats
   val statFrontendL = List(frontend.doneRegular)
   out.statFrontend := Cat(statFrontendL)

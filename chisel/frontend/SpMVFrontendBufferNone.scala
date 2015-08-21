@@ -115,7 +115,7 @@ class SpMVFrontendBufferNone(val p: SpMVAccelWrapperParams) extends Module {
     return reqs
   }
   // make read request stream from id stream
-  io.mp.memRdReq <> idsToReqs(forkSplit.outB, false)
+  io.mp.memRdReq <> Queue(idsToReqs(forkSplit.outB, false), 2)
 
   // TODO parametrize depths
   val opQ = Module(new Queue(opType, 4)).io
