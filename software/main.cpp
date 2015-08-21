@@ -96,9 +96,6 @@ void printResults(HardwareSpMV * spmv, vector<string> keys) {
  q
  */
 
-// TODO parametrize cold miss skip depending on hw availability instead
-#define CMS
-
 int main(int argc, char *argv[]) {
 	loadedMatrixName = "";
 	const bool yInOCM = false;
@@ -116,6 +113,10 @@ int main(int argc, char *argv[]) {
 		confs.push_back(conf);
 		cin >> conf;
 	}
+
+	bool CMS;
+	cout << "Cold miss skip (0 to disable, 1 to enable): " << endl;
+	cin >> CMS;
 
 	//selectBitfile();
 
@@ -170,13 +171,12 @@ int main(int argc, char *argv[]) {
 			SoftwareSpMV * check = new SoftwareSpMV(A, x);
 			check->exec();
 
-#ifdef CMS
-			A->markRowStarts();
-#endif
+			if (CMS)
+				A->markRowStarts();
 
 			HardwareSpMV * spmv = HWSpMVFactory::make(accBase, resBase, A, x,
 					y);
-			spmv->setThresholds(256,512,512,256);
+			spmv->setThresholds(256, 512, 512, 256);
 			// generate + print stat keys on the first run
 			if (!keysBuilt) {
 				keys = spmv->statKeys();
