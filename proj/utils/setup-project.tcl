@@ -1,5 +1,5 @@
-if {$argc != 4} {
-  puts "Expected: <project name> <project path> <ip path> <comp verilog>"
+if {$argc != 5} {
+  puts "Expected: <project name> <project path> <ip path> <comp verilog> <block design name>"
   exit
 }
 
@@ -7,8 +7,8 @@ set projName [lindex $argv 0]
 set projPath [lindex $argv 1]
 set ipPath [lindex $argv 2]
 set compV [lindex $argv 3]
-
-set tclBlockDesign "$ipPath/WrapperBlockDesign-2Port.tcl"
+set tclBlockDesign [lindex $argv 4]
+set tclBlockDesign "$ipPath/$tclBlockDesign"
 
 # create the project
 create_project $projName $projPath -part xc7z020clg484-1

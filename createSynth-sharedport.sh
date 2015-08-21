@@ -17,5 +17,5 @@ if [ ! -e $SYS_ROOT ]; then
   mkdir -p $SYS_ROOT
 
   # call tcl script to create Vivado project
-  vivado -mode batch -source "$UTILS_ROOT/setup-project.tcl" -tclargs "$PROJ_NAME" "$SYS_ROOT" "$IP_ROOT" "$PATH_TO_COMP_VERILOG" "WrapperBlockDesign-2Port.tcl"
+  vivado -mode batch -source "$UTILS_ROOT/setup-project.tcl" -tclargs "$PROJ_NAME" "$SYS_ROOT" "$IP_ROOT" "$PATH_TO_COMP_VERILOG" "WrapperBlockDesign-2Port-Shared.tcl"
 fi
