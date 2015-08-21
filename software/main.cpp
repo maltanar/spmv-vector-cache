@@ -176,6 +176,7 @@ int main(int argc, char *argv[]) {
 
 			HardwareSpMV * spmv = HWSpMVFactory::make(accBase, resBase, A, x,
 					y);
+			spmv->setThresholds(256,512,512,256);
 			// generate + print stat keys on the first run
 			if (!keysBuilt) {
 				keys = spmv->statKeys();

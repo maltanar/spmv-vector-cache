@@ -20,7 +20,7 @@ public:
 protected:
 	SpMVAcceleratorNewCacheDriver * m_acc;
 
-	void setupRegs();
+	virtual void setupRegs();
 
 	// helpers for reading status
 	typedef enum {
@@ -62,6 +62,8 @@ protected:
 	unsigned int m_readMisses;
 	unsigned int m_conflictMisses;
 	unsigned int m_hazardStalls;
+
+	virtual void setThresholdRegisters();
 
 #define PROFILER_STATES 8
 	unsigned int m_stateCounts[PROFILER_STATES];

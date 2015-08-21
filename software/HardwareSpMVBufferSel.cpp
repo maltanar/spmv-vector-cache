@@ -24,6 +24,8 @@ HardwareSpMVBufferSel::~HardwareSpMVBufferSel() {
 }
 
 void HardwareSpMVBufferSel::setupRegs() {
+	HardwareSpMV::setupRegs();
+
 	m_acc->numCols(m_A->getCols());
 	m_acc->numNZ(m_A->getNz());
 	m_acc->numRows(m_A->getRows());
@@ -34,12 +36,6 @@ void HardwareSpMVBufferSel::setupRegs() {
 
 	m_acc->baseInputVec((unsigned int) m_x);
 	m_acc->baseOutputVec((unsigned int) m_y);
-
-	// setup thresholds
-	m_acc->thresColPtr(128);
-	m_acc->thresInputVec(128);
-	m_acc->thresNZData(256);
-	m_acc->thresRowInd(256);
 }
 
 void HardwareSpMVBufferSel::init() {
@@ -146,4 +142,12 @@ void HardwareSpMVBufferSel::printAllStatistics() {
 	cout << "Total cycles: " << m_totalCycles << endl;
 	float act = (float) m_activeCycles / (float) m_totalCycles;
 	cout << "Active/Total = " << act << endl;
+}
+
+void HardwareSpMVBufferSel::setThresholdRegisters() {
+	// setup thresholds
+	m_acc->thresColPtr(m_thres_colPtr);
+	m_acc->thresRowInd(m_thres_rowInd);
+	m_acc->thresNZData(m_thres_nzData);
+	m_acc->thresInputVec(m_thres_inpVec);
 }

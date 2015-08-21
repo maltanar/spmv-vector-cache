@@ -4,7 +4,7 @@
 using namespace std;
 
 const char * stateNames[] = { "sActive", "sFill", "sFlush", "sDone",
-			"sReadMiss1", "sReadMiss2", "sReadMiss3", "sColdMiss" };
+		"sReadMiss1", "sReadMiss2", "sReadMiss3", "sColdMiss" };
 
 HardwareSpMVNewCache::HardwareSpMVNewCache(unsigned int aBase,
 		unsigned int aReset, SparseMatrix * A, SpMVData *x, SpMVData *y) :
@@ -27,6 +27,8 @@ HardwareSpMVNewCache::~HardwareSpMVNewCache() {
 }
 
 void HardwareSpMVNewCache::setupRegs() {
+	HardwareSpMV::setupRegs();
+
 	m_acc->numCols(m_A->getCols());
 	m_acc->numNZ(m_A->getNz());
 	m_acc->numRows(m_A->getRows());
@@ -37,12 +39,6 @@ void HardwareSpMVNewCache::setupRegs() {
 
 	m_acc->baseInputVec((unsigned int) m_x);
 	m_acc->baseOutputVec((unsigned int) m_y);
-
-	// setup thresholds
-	m_acc->thresColPtr(128);
-	m_acc->thresInputVec(128);
-	m_acc->thresNZData(256);
-	m_acc->thresRowInd(256);
 }
 
 void HardwareSpMVNewCache::init() {
@@ -130,17 +126,26 @@ void HardwareSpMVNewCache::printAllFIFOLevels() {
 }
 
 unsigned int HardwareSpMVNewCache::statInt(std::string name) {
-	if(name == "totalCycles") return m_totalCycles;
-	else if (name == "activeCycles") return m_activeCycles;
-	else if (name == "readMisses") return m_readMisses;
-	else if (name == "conflictMisses") return m_conflictMisses;
-	else if (name == "ocmDepth") return m_acc->ocmWords();
-	else if (name == "issueWindow") return m_acc->issueWindow();
-	else if (name == "hazardStalls") return m_hazardStalls;
-	else if (name == "cms") return (m_acc->statFrontend() & frontendSupportCMS) >> 3;
+	if (name == "totalCycles")
+		return m_totalCycles;
+	else if (name == "activeCycles")
+		return m_activeCycles;
+	else if (name == "readMisses")
+		return m_readMisses;
+	else if (name == "conflictMisses")
+		return m_conflictMisses;
+	else if (name == "ocmDepth")
+		return m_acc->ocmWords();
+	else if (name == "issueWindow")
+		return m_acc->issueWindow();
+	else if (name == "hazardStalls")
+		return m_hazardStalls;
+	else if (name == "cms")
+		return (m_acc->statFrontend() & frontendSupportCMS) >> 3;
 	else {
 		for (unsigned int i = 0; i < PROFILER_STATES; i++) {
-			if(name == stateNames[i]) return m_stateCounts[i];
+			if (name == stateNames[i])
+				return m_stateCounts[i];
 		}
 	}
 	// call superclass fxn if key not found
@@ -187,4 +192,12 @@ std::vector<std::string> HardwareSpMVNewCache::statKeys() {
 	keys.push_back("hazardStalls");
 	keys.push_back("cms");
 	return keys;
+}
+
+void HardwareSpMVNewCache::setThresholdRegisters() {
+	// setup thresholds
+	m_acc->thresColPtr(m_thres_colPtr);
+	m_acc->thresRowInd(m_thres_rowInd);
+	m_acc->thresNZData(m_thres_nzData);
+	m_acc->thresInputVec(m_thres_inpVec);
 }

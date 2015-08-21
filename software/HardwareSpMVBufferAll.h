@@ -19,7 +19,7 @@ public:
 protected:
 	SpMVAcceleratorBufferAllDriver * m_acc;
 
-	void setupRegs();
+	virtual void setupRegs();
 
 	// helpers for reading status
 	typedef enum {
@@ -58,6 +58,9 @@ protected:
 	unsigned int m_totalCycles;
 	unsigned int m_activeCycles;
 	unsigned int m_hazardStalls;
+
+
+	virtual void setThresholdRegisters();
 };
 
 #endif /* HARDWARESPMVBUFFERALL_H_ */

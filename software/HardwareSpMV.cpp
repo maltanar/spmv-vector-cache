@@ -17,6 +17,11 @@ HardwareSpMV::HardwareSpMV(unsigned int aBase, unsigned int aReset,
 	m_accelBase = (volatile unsigned int *) aBase;
 	m_resetBase = (volatile unsigned int *) aReset;
 	m_diffFromGolden = 1;
+
+	m_thres_colPtr = 128;
+	m_thres_rowInd = 128;
+	m_thres_nzData = 128;
+	m_thres_inpVec = 128;
 }
 
 HardwareSpMV::~HardwareSpMV() {
@@ -66,10 +71,22 @@ void HardwareSpMV::write() {
 void HardwareSpMV::regular() {
 	// make sure all SpMV data is flushed to DRAM
 	/*
-	Xil_DCacheFlushRange((unsigned int)m_A->getIndPtrs(), sizeof(SpMVIndex)*(m_A->getCols()+1));
-	Xil_DCacheFlushRange((unsigned int)m_A->getInds(), sizeof(SpMVIndex)*(m_A->getNz()));
-	Xil_DCacheFlushRange((unsigned int)m_A->getNzData(), sizeof(SpMVData)*(m_A->getNz()));
-	Xil_DCacheFlushRange((unsigned int)m_x, sizeof(SpMVData)*(m_A->getCols()));
-	Xil_DCacheFlushRange((unsigned int)m_y, sizeof(SpMVData)*(m_A->getRows()));
-*/
+	 Xil_DCacheFlushRange((unsigned int)m_A->getIndPtrs(), sizeof(SpMVIndex)*(m_A->getCols()+1));
+	 Xil_DCacheFlushRange((unsigned int)m_A->getInds(), sizeof(SpMVIndex)*(m_A->getNz()));
+	 Xil_DCacheFlushRange((unsigned int)m_A->getNzData(), sizeof(SpMVData)*(m_A->getNz()));
+	 Xil_DCacheFlushRange((unsigned int)m_x, sizeof(SpMVData)*(m_A->getCols()));
+	 Xil_DCacheFlushRange((unsigned int)m_y, sizeof(SpMVData)*(m_A->getRows()));
+	 */
+}
+
+void HardwareSpMV::setThresholds(unsigned int colPtr, unsigned int rowInd,
+		unsigned int nzData, unsigned int inpVec) {
+	m_thres_colPtr = colPtr;
+	m_thres_rowInd = rowInd;
+	m_thres_nzData = nzData;
+	m_thres_inpVec = inpVec;
+}
+
+void HardwareSpMV::setupRegs() {
+	setThresholdRegisters();
 }

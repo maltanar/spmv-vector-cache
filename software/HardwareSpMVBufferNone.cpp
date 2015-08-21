@@ -22,6 +22,8 @@ HardwareSpMVBufferNone::~HardwareSpMVBufferNone() {
 }
 
 void HardwareSpMVBufferNone::setupRegs() {
+	HardwareSpMV::setupRegs();
+
 	m_acc->numCols(m_A->getCols());
 	m_acc->numNZ(m_A->getNz());
 	m_acc->numRows(m_A->getRows());
@@ -32,12 +34,6 @@ void HardwareSpMVBufferNone::setupRegs() {
 
 	m_acc->baseInputVec((unsigned int) m_x);
 	m_acc->baseOutputVec((unsigned int) m_y);
-
-	// setup thresholds
-	m_acc->thresColPtr(128);
-	m_acc->thresInputVec(128);
-	m_acc->thresNZData(256);
-	m_acc->thresRowInd(256);
 }
 
 bool HardwareSpMVBufferNone::readBackendStatus(BackendStatMask mask) {
@@ -62,39 +58,14 @@ void HardwareSpMVBufferNone::regular() {
 	assert(m_acc->statBackend() == 0);
 	assert(m_acc->statFrontend() == 0);
 
-	bool bDone = false, fDone = false;
-
-	Xil_DCacheEnable();
-	unsigned int sampleCount = 0;
-	const unsigned int capacity = 1024 * 1024;
-	unsigned char cntr=0;
-	unsigned short *samples = new unsigned short[capacity];
-	for (unsigned int i = 0; i < capacity; i++)
-		samples[i] = 0;
-
 	m_acc->startRegular(1);
-
-	while (!bDone || !fDone) {
-
-		bDone = readBackendStatus(backendMaskDoneRegular);
-		fDone = readFrontendStatus(frontendMaskDoneRegular);
-		cntr++;
-
-		if (cntr == 32 && sampleCount < capacity) {
-			samples[sampleCount] = getFIFOLevel((SpMVFIFONum) 4);
-			sampleCount++;
-			cntr=0;
-		}
-	};
-
-	cout << "samples: " << sampleCount << endl;
-	for (unsigned int i = 0; i < sampleCount; i++)
-			cout << i << " " << samples[i] << endl;
+	while (!(readBackendStatus(backendMaskDoneRegular)
+			&& readFrontendStatus(frontendMaskDoneRegular)))
+		;
 
 	updateStatistics();
 
 	m_acc->startRegular(0);
-	Xil_DCacheDisable();
 }
 
 volatile unsigned short HardwareSpMVBufferNone::getFIFOLevel(SpMVFIFONum num) {
@@ -164,4 +135,12 @@ std::vector<std::string> HardwareSpMVBufferNone::statKeys() {
 	keys.push_back("issueWindow");
 	keys.push_back("hazardStalls");
 	return keys;
+}
+
+void HardwareSpMVBufferNone::setThresholdRegisters() {
+	// setup thresholds
+	m_acc->thresColPtr(m_thres_colPtr);
+	m_acc->thresRowInd(m_thres_rowInd);
+	m_acc->thresNZData(m_thres_nzData);
+	m_acc->thresInputVec(m_thres_inpVec);
 }

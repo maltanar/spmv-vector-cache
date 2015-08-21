@@ -17,7 +17,7 @@ public:
 protected:
 	SpMVAcceleratorBufferSelDriver * m_acc;
 
-	void setupRegs();
+	virtual void setupRegs();
 
 	// helpers for reading status
 	typedef enum {
@@ -59,5 +59,7 @@ protected:
 	unsigned int m_hazardStallsDDR;
 	unsigned int m_capacityStallsOCM;
 	unsigned int m_capacityStallsDDR;
+
+	virtual void setThresholdRegisters();
 };
 #endif /* HARDWARESPMVBUFFERSEL_H_ */
