@@ -144,7 +144,7 @@ class SpMVBackendTwoPort(val p: SpMVAccelWrapperParams, val idBase: Int) extends
   // update in-flight req. count for each channel
   for(i <- 0 until 4) {
     // new requests (derived from burst length of the request)
-    val reqB = Mux(newReq(i), intl.reqIn(i).bits.numBytes >> UInt(3), UInt(0))
+    val reqB = Mux(newReq(i), regularComps(i).reqs.bits.numBytes >> UInt(3), UInt(0))
     // new responses (max 1 response at a time)
     val rspB = Mux(newRsp(i), UInt(1), UInt(0) )
     // update in-flight requests

@@ -58,12 +58,13 @@ class SpMVAcceleratorBufferAll(p: SpMVAccelWrapperParams) extends AXIWrappableAc
   out.ocmWords := UInt(p.ocmDepth)
 
   // instantiate backend, connect memory port
-  val backend = Module(new SpMVBackend(p, 0)).io
+  val backend = Module(new SpMVBackendTwoPort(p, 0)).io
   // use partial interface fulfilment to connect backend interfaces
   // produces warnings, but should work fine
   backend <> in
   // memory ports
-  backend <> io.mp(0)
+  backend.mp0 <> io.mp(0)
+  backend.mp1 <> io.mp(1)
   val hasDecErr = (backend.decodeErrors != UInt(0))
   val statBackendL = List(hasDecErr, backend.doneWrite, backend.doneRegular)
   out.statBackend := Cat(statBackendL)
