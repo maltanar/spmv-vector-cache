@@ -1,9 +1,9 @@
-#ifndef SpMVAcceleratorDriver_H
-#define SpMVAcceleratorDriver_H
+#ifndef SpMVAcceleratorBufferAllDriver_H
+#define SpMVAcceleratorBufferAllDriver_H
 #include <assert.h>
 class SpMVAcceleratorBufferAllDriver {
 public:
- static unsigned int expSignature() {return 0xccd68766;};
+ static unsigned int expSignature() {return 0xd1c3ef4d;};
  SpMVAcceleratorBufferAllDriver(volatile unsigned int * baseAddr) {
   m_baseAddr = baseAddr; assert(signature() == expSignature());};
  // read+write register: startInit index: 10
