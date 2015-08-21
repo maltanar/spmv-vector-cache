@@ -520,6 +520,13 @@
           </spirit:physicalPort>
         </spirit:portMap>
       </spirit:portMaps>
+      <spirit:parameters>
+        <spirit:parameter>
+          <spirit:name>NUM_READ_OUTSTANDING</spirit:name>
+          <spirit:description>Num Read Outstanding</spirit:description>
+          <spirit:value spirit:id="BUSIFPARAM_VALUE.MEM0.NUM_READ_OUTSTANDING">8</spirit:value>
+        </spirit:parameter>
+      </spirit:parameters>
       <spirit:vendorExtensions>
         <xilinx:busInterfaceInfo>
           <xilinx:enablement>
@@ -834,6 +841,18 @@
           </spirit:physicalPort>
         </spirit:portMap>
       </spirit:portMaps>
+      <spirit:parameters>
+        <spirit:parameter>
+          <spirit:name>NUM_READ_OUTSTANDING</spirit:name>
+          <spirit:description>Num Read Outstanding</spirit:description>
+          <spirit:value spirit:id="BUSIFPARAM_VALUE.MEM1.NUM_READ_OUTSTANDING">8</spirit:value>
+        </spirit:parameter>
+        <spirit:parameter>
+          <spirit:name>NUM_WRITE_OUTSTANDING</spirit:name>
+          <spirit:description>Num Write Outstanding</spirit:description>
+          <spirit:value spirit:id="BUSIFPARAM_VALUE.MEM1.NUM_WRITE_OUTSTANDING">8</spirit:value>
+        </spirit:parameter>
+      </spirit:parameters>
       <spirit:vendorExtensions>
         <xilinx:busInterfaceInfo>
           <xilinx:enablement>
@@ -4383,11 +4402,11 @@
         <xilinx:taxonomy>/BaseIP</xilinx:taxonomy>
       </xilinx:taxonomies>
       <xilinx:displayName>AXIAccelWrapper_v1_0</xilinx:displayName>
-      <xilinx:coreRevision>4</xilinx:coreRevision>
+      <xilinx:coreRevision>5</xilinx:coreRevision>
       <xilinx:upgrades>
         <xilinx:canUpgradeFrom>user.org:user:AXIAccelWrapper:1.0</xilinx:canUpgradeFrom>
       </xilinx:upgrades>
-      <xilinx:coreCreationDateTime>2015-08-20T19:07:22Z</xilinx:coreCreationDateTime>
+      <xilinx:coreCreationDateTime>2015-08-21T12:54:20Z</xilinx:coreCreationDateTime>
       <xilinx:tags>
         <xilinx:tag xilinx:name="nopcore"/>
         <xilinx:tag xilinx:name="user.org:user:AXIAccelWrapper:1.0_ARCHIVE_LOCATION">/home/maltanar/Dropbox/PhD/ip-repo/AXIAccelWrapper</xilinx:tag>
@@ -4397,7 +4416,7 @@
     </xilinx:coreExtensions>
     <xilinx:packagingInfo>
       <xilinx:xilinxVersion>2014.4</xilinx:xilinxVersion>
-      <xilinx:checksum xilinx:scope="busInterfaces" xilinx:value="dee92e67"/>
+      <xilinx:checksum xilinx:scope="busInterfaces" xilinx:value="47b4d877"/>
       <xilinx:checksum xilinx:scope="addressSpaces" xilinx:value="228d07e5"/>
       <xilinx:checksum xilinx:scope="memoryMaps" xilinx:value="c8fc2bf2"/>
       <xilinx:checksum xilinx:scope="fileGroups" xilinx:value="4143f2d3"/>
