@@ -10,6 +10,7 @@
 #include "sdcard.h"
 #include "devcfg.h"
 #include "HWSpMVFactory.h"
+#include "timer.h"
 
 using namespace std;
 
@@ -52,7 +53,7 @@ void printKeys(vector<string> keys) {
 	cout << endl;
 }
 
-void printResults(HardwareSpMV * spmv, vector<string> keys) {
+void printResults(SpMV * spmv, vector<string> keys) {
 	for (vector<string>::iterator it = keys.begin(); it != keys.end(); ++it) {
 		if (*it == "matrix")
 			cout << loadedMatrixName << ",";
@@ -96,7 +97,51 @@ void printResults(HardwareSpMV * spmv, vector<string> keys) {
  q
  */
 
+void benchmarkSW(vector<string> ms) {
+	Xil_DCacheEnable();
+	bool keysBuilt = false;
+	vector<string> keys;
+	for (vector<string>::iterator m = ms.begin(); m != ms.end(); ++m) {
+		loadSparseMatrixFromSDCard(*m);
+
+		SparseMatrix * A = SparseMatrix::fromMemory(matrixMetaBase);
+		A->setName(loadedMatrixName);
+		//A->printSummary();
+
+		SpMVData *x = (SpMVData *) malloc_aligned(64,
+				sizeof(SpMVData) * A->getCols());
+		SpMVData *y = (SpMVData *) malloc_aligned(64,
+				sizeof(SpMVData) * A->getRows());
+
+		for (SpMVIndex i = 0; i < A->getCols(); i++) {
+			x[i] = (SpMVData) 1;
+		}
+		for (SpMVIndex i = 0; i < A->getRows(); i++) {
+			y[i] = (SpMVData) 0;
+		}
+
+		SoftwareSpMV * spmv = new SoftwareSpMV(A, x, y);
+
+		// generate + print stat keys on the first run
+		if (!keysBuilt) {
+			keys = spmv->statKeys();
+			keys.push_back("matrix");
+
+			printKeys (keys);
+			keysBuilt = true;
+		}
+
+		spmv->exec();
+		printResults(spmv, keys);
+
+		free_aligned(x);
+		free_aligned(y);
+	}
+	Xil_DCacheDisable();
+}
+
 int main(int argc, char *argv[]) {
+	TimerSetup();
 	loadedMatrixName = "";
 	const bool yInOCM = false;
 	Xil_DCacheDisable();
@@ -106,7 +151,8 @@ int main(int argc, char *argv[]) {
 	string conf;
 
 	cout
-			<< "Enter list of configurations (bitfiles), s to keep current, q to finalize: "
+			<< "Enter list of configurations (bitfiles)" << endl <<
+			"s to keep current, sw for software, q to finalize: "
 			<< endl;
 	cin >> conf;
 	while (conf != "q") {
@@ -144,7 +190,12 @@ int main(int argc, char *argv[]) {
 	vector<string> keys;
 
 	for (vector<string>::iterator cf = confs.begin(); cf != confs.end(); ++cf) {
-		selectBitfile(*cf);
+		if(*cf == "sw") {
+			benchmarkSW(ms);
+			break;
+		} else
+			selectBitfile(*cf);
+
 
 		for (vector<string>::iterator it = ms.begin(); it != ms.end(); ++it) {
 			loadSparseMatrixFromSDCard(*it);

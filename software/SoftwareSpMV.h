@@ -10,8 +10,12 @@ public:
 
 	virtual bool exec();
 
+	virtual unsigned int statInt(std::string name);
+	virtual std::vector<std::string> statKeys();
+
 protected:
 	bool m_allocX, m_allocY;
+	unsigned int m_execTime;
 };
 
 #endif /* SOFTWARESPMV_H_ */

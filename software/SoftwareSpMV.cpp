@@ -1,5 +1,6 @@
 #include "SoftwareSpMV.h"
 #include <iostream>
+#include "timer.h"
 
 using namespace std;
 
@@ -7,6 +8,7 @@ SoftwareSpMV::SoftwareSpMV(SparseMatrix * A, SpMVData *x, SpMVData *y) :
 		SpMV(A, x, y) {
 	m_allocX = false;
 	m_allocY = false;
+	m_execTime = 0;
 
 	if (A == 0) {
 		cerr << "Invalid matrix for SoftwareSpMV!" << endl;
@@ -45,6 +47,8 @@ bool SoftwareSpMV::exec() {
 	SpMVIndex * rowInd = m_A->getInds();
 	SpMVData * nzData = m_A->getNzData();
 
+	TimerStart();
+
 	for (col = 0; col < colCount; col++) {
 		SpMVData inpVecElem = m_x[col];
 		for (elemInd = colPtr[col]; elemInd < colPtr[col + 1]; elemInd++) {
@@ -52,6 +56,30 @@ bool SoftwareSpMV::exec() {
 		}
 	}
 
+	TimerStop();
+	m_execTime = TimerRead();
+
 	return true;
 }
+std::vector<std::string> SoftwareSpMV::statKeys() {
+	vector<string> keys;
+	keys.push_back("rows");
+	keys.push_back("cols");
+	keys.push_back("nz");
+	keys.push_back("time");
+	return keys;
+}
 
+
+unsigned int SoftwareSpMV::statInt(std::string name) {
+	if (name == "rows")
+		return m_A->getRows();
+	else if (name == "cols")
+		return m_A->getCols();
+	else if (name == "nz")
+		return m_A->getNz();
+	else if (name == "time")
+		return m_execTime;
+	else
+		return 0;
+}

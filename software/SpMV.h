@@ -2,6 +2,8 @@
 #define SPMV_H_
 
 #include "SparseMatrix.h"
+#include <vector>
+#include <string>
 
 class SpMV {
 public:
@@ -22,6 +24,9 @@ public:
 	SpMVData* getY() const {
 		return m_y;
 	}
+
+	virtual unsigned int statInt(std::string name) = 0;
+	virtual std::vector<std::string> statKeys() = 0;
 
 protected:
 	SparseMatrix * m_A;
