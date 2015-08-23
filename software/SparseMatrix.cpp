@@ -1,6 +1,7 @@
 #include "SparseMatrix.h"
 #include <string.h>
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
@@ -49,15 +50,21 @@ void SparseMatrix::markRowStarts() {
 	if(!m_rowStartsMarked) {
 		m_rowStartsMarked = true;
 		// flags to mark encountered row indices
-		char * encounteredRow = new char[m_rows];
+		// packed as 32-bit fields for smaller memory/cache footprint
+		unsigned int encSize = (m_rows/32)+1;
+		unsigned int * encounteredRow = new unsigned int[encSize];
+
 		// set all encountered flags to zero
-		memset(encounteredRow, 0, m_rows);
+		memset(encounteredRow, 0, sizeof(unsigned int)*encSize);
 
 		for(SpMVIndex nz = 0; nz < m_nz; nz++) {
 			SpMVIndex rowInd = m_inds[nz];
-			if(!encounteredRow[rowInd]) {
+			unsigned int bitInd = rowInd / 32;
+			unsigned int bitMod = rowInd % 32;
+			unsigned int bVal = encounteredRow[bitInd];
+			if((bVal & (1 << bitMod)) == 0) {
 				// set as encountered + add cold miss bit at highest position
-				encounteredRow[rowInd] = 1;
+				encounteredRow[bitInd] = bVal | (1 << bitMod);
 				m_inds[nz] = rowInd | (1 << 31);
 			}
 		}
