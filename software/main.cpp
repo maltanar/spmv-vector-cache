@@ -132,6 +132,7 @@ void benchmarkSW(vector<string> ms) {
 		}
 
 		spmv->exec();
+		spmv->measurePreprocessingTimes();
 		printResults(spmv, keys);
 
 		free_aligned(x);

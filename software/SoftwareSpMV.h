@@ -8,6 +8,8 @@ public:
 	SoftwareSpMV(SparseMatrix * A, SpMVData *x = 0, SpMVData *y = 0);
 	virtual ~SoftwareSpMV();
 
+	void measurePreprocessingTimes();
+
 	virtual bool exec();
 
 	virtual unsigned int statInt(std::string name);
@@ -16,6 +18,9 @@ public:
 protected:
 	bool m_allocX, m_allocY;
 	unsigned int m_execTime;
+	unsigned int m_cmsTime;
+	unsigned int m_maxAliveTime;
+	unsigned int m_maxColSpanTime;
 };
 
 #endif /* SOFTWARESPMV_H_ */

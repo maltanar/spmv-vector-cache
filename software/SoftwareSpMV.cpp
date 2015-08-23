@@ -9,6 +9,9 @@ SoftwareSpMV::SoftwareSpMV(SparseMatrix * A, SpMVData *x, SpMVData *y) :
 	m_allocX = false;
 	m_allocY = false;
 	m_execTime = 0;
+	m_cmsTime = 0;
+	m_maxAliveTime = 0;
+	m_maxColSpanTime = 0;
 
 	if (A == 0) {
 		cerr << "Invalid matrix for SoftwareSpMV!" << endl;
@@ -61,12 +64,26 @@ bool SoftwareSpMV::exec() {
 
 	return true;
 }
+
+void SoftwareSpMV::measurePreprocessingTimes() {
+	TimerStart();
+	m_A->markRowStarts();
+	TimerStop();
+	m_cmsTime = TimerRead();
+
+	// TODO measure time for maxAlive and maxColSkip
+	// TODO clear row start info to prevent corruption in software SpMV
+}
+
 std::vector<std::string> SoftwareSpMV::statKeys() {
 	vector<string> keys;
 	keys.push_back("rows");
 	keys.push_back("cols");
 	keys.push_back("nz");
-	keys.push_back("time");
+	keys.push_back("spmvtime");
+	keys.push_back("cmstime");
+	keys.push_back("matime");
+	keys.push_back("mcstime");
 	return keys;
 }
 
@@ -78,8 +95,14 @@ unsigned int SoftwareSpMV::statInt(std::string name) {
 		return m_A->getCols();
 	else if (name == "nz")
 		return m_A->getNz();
-	else if (name == "time")
+	else if (name == "spmvtime")
 		return m_execTime;
+	else if (name == "cmstime")
+		return m_cmsTime;
+	else if (name == "matime")
+		return m_maxAliveTime;
+	else if (name == "mcstime")
+		return m_maxColSpanTime;
 	else
 		return 0;
 }
