@@ -97,6 +97,7 @@ class SpMVFrontendNBCache(val p: SpMVAccelWrapperParams) extends Module {
     val conflictMissCount = UInt(OUTPUT, 32)
     val hazardStalls = UInt(OUTPUT, 32)
     val cacheState = UInt(OUTPUT, 32)
+    val bwMon = new StreamMonitorOutIF()
 
     // value inputs
     val numNZ = UInt(INPUT, width = 32)
@@ -217,5 +218,8 @@ class SpMVFrontendNBCache(val p: SpMVAccelWrapperParams) extends Module {
   // use op count to drive the doneRegular signal
   io.doneRegular := (regOpCount === io.numNZ)
 
+  // TODO report the actual #hazard stalls
   io.hazardStalls := UInt(255)
+
+  io.bwMon := StreamMonitor(redJoin.out, io.startRegular & !io.doneRegular)
 }

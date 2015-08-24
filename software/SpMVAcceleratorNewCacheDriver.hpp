@@ -3,7 +3,7 @@
 #include <assert.h>
 class SpMVAcceleratorNewCacheDriver {
 public:
- static unsigned int expSignature() {return 0x1815737a;};
+ static unsigned int expSignature() {return 0xeea49d85;};
  SpMVAcceleratorNewCacheDriver(volatile unsigned int * baseAddr) {
   m_baseAddr = baseAddr; assert(signature() == expSignature());};
  // read+write register: startInit index: 15
@@ -72,21 +72,21 @@ public:
  // read+write register: bwMon_activeCycles index: 6
  void bwMon_activeCycles(unsigned int v) {m_baseAddr[6] = v;};
  unsigned int bwMon_activeCycles() {return m_baseAddr[6];};
- // read+write register: fifoCountsCPRI index: 7
- void fifoCountsCPRI(unsigned int v) {m_baseAddr[7] = v;};
- unsigned int fifoCountsCPRI() {return m_baseAddr[7];};
- // read+write register: fifoCountsNZIV index: 8
- void fifoCountsNZIV(unsigned int v) {m_baseAddr[8] = v;};
- unsigned int fifoCountsNZIV() {return m_baseAddr[8];};
- // read+write register: readMissCount index: 9
- void readMissCount(unsigned int v) {m_baseAddr[9] = v;};
- unsigned int readMissCount() {return m_baseAddr[9];};
- // read+write register: writeMissCount index: 10
- void writeMissCount(unsigned int v) {m_baseAddr[10] = v;};
- unsigned int writeMissCount() {return m_baseAddr[10];};
- // read+write register: conflictMissCount index: 11
- void conflictMissCount(unsigned int v) {m_baseAddr[11] = v;};
- unsigned int conflictMissCount() {return m_baseAddr[11];};
+ // read+write register: bwMon_noValidButReady index: 7
+ void bwMon_noValidButReady(unsigned int v) {m_baseAddr[7] = v;};
+ unsigned int bwMon_noValidButReady() {return m_baseAddr[7];};
+ // read+write register: bwMon_noReadyButValid index: 8
+ void bwMon_noReadyButValid(unsigned int v) {m_baseAddr[8] = v;};
+ unsigned int bwMon_noReadyButValid() {return m_baseAddr[8];};
+ // read+write register: fifoCountsCPRI index: 9
+ void fifoCountsCPRI(unsigned int v) {m_baseAddr[9] = v;};
+ unsigned int fifoCountsCPRI() {return m_baseAddr[9];};
+ // read+write register: fifoCountsNZIV index: 10
+ void fifoCountsNZIV(unsigned int v) {m_baseAddr[10] = v;};
+ unsigned int fifoCountsNZIV() {return m_baseAddr[10];};
+ // read+write register: readMissCount index: 11
+ void readMissCount(unsigned int v) {m_baseAddr[11] = v;};
+ unsigned int readMissCount() {return m_baseAddr[11];};
  // read+write register: profileCount index: 12
  void profileCount(unsigned int v) {m_baseAddr[12] = v;};
  unsigned int profileCount() {return m_baseAddr[12];};

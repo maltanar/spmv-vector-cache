@@ -12,7 +12,7 @@ import java.io.{FileInputStream, DataInputStream}
 
 
 class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
-  override lazy val accelVersion: String = "alpha-5"
+  override lazy val accelVersion: String = "beta-1"
 
   // plug unused register file elems / set defaults
   plugRegOuts()
@@ -55,8 +55,6 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
     val fifoCountsCPRI = UInt(width = p.csrDataWidth)
     val fifoCountsNZIV = UInt(width = p.csrDataWidth)
     val readMissCount = UInt(width = p.csrDataWidth)
-    val writeMissCount = UInt(width = p.csrDataWidth)
-    val conflictMissCount = UInt(width = p.csrDataWidth)
     val profileCount = UInt(width = p.csrDataWidth)
     val hazardStalls = UInt(width = p.csrDataWidth)
     val debug = UInt(width = p.csrDataWidth)
@@ -122,8 +120,6 @@ class SpMVAcceleratorNewCache(p: SpMVAccelWrapperParams) extends AXIWrappableAcc
 
   out.fifoCountsCPRI := Cat(pad16(colPtrFIFO.count), pad16(rowIndFIFO.count))
   out.fifoCountsNZIV := Cat(pad16(nzDataFIFO.count), pad16(inpVecFIFO.count))
-
-  out.bwMon := StreamMonitor(io.mp(0).memRdRsp, in.startRegular & !frontend.doneRegular)
 
   // state profiler to monitor the cache activity
   val sp = Module(new StateProfiler(8)).io

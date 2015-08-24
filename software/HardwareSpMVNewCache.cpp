@@ -17,8 +17,9 @@ HardwareSpMVNewCache::HardwareSpMVNewCache(unsigned int aBase,
 	m_totalCycles = 0;
 	m_activeCycles = 0;
 	m_readMisses = 0;
-	m_conflictMisses = 0;
 	m_hazardStalls = 0;
+	m_noValidButReady = 0;
+	m_noReadyButValid = 0;
 	memset(m_stateCounts, 0, PROFILER_STATES * 4);
 }
 
@@ -132,8 +133,6 @@ unsigned int HardwareSpMVNewCache::statInt(std::string name) {
 		return m_activeCycles;
 	else if (name == "readMisses")
 		return m_readMisses;
-	else if (name == "conflictMisses")
-		return m_conflictMisses;
 	else if (name == "ocmDepth")
 		return m_acc->ocmWords();
 	else if (name == "issueWindow")
@@ -142,6 +141,10 @@ unsigned int HardwareSpMVNewCache::statInt(std::string name) {
 		return m_hazardStalls;
 	else if (name == "cms")
 		return (m_acc->statFrontend() & frontendSupportCMS) >> 3;
+	else if (name == "noValidButReady")
+		return m_noValidButReady;
+	else if (name == "noReadyButValid")
+		return m_noReadyButValid;
 	else {
 		for (unsigned int i = 0; i < PROFILER_STATES; i++) {
 			if (name == stateNames[i])
@@ -157,7 +160,8 @@ void HardwareSpMVNewCache::updateStatistics() {
 	m_activeCycles = m_acc->bwMon_activeCycles();
 	m_hazardStalls = m_acc->hazardStalls();
 	m_readMisses = m_acc->readMissCount();
-	m_conflictMisses = m_acc->conflictMissCount();
+	m_noValidButReady = m_acc->bwMon_noValidButReady();
+	m_noReadyButValid = m_acc->bwMon_noReadyButValid();
 	for (unsigned int i = 0; i < PROFILER_STATES; i++) {
 		m_acc->profileSel(i);
 		m_stateCounts[i] = m_acc->profileCount();
@@ -166,7 +170,6 @@ void HardwareSpMVNewCache::updateStatistics() {
 
 void HardwareSpMVNewCache::printAllStatistics() {
 	cout << "Read misses: " << m_readMisses << endl;
-	cout << "Conflict misses: " << m_conflictMisses << endl;
 
 	for (unsigned int i = 0; i < PROFILER_STATES; i++) {
 		cout << "Cache state = " << stateNames[i] << " = " << m_stateCounts[i]
@@ -186,11 +189,12 @@ std::vector<std::string> HardwareSpMVNewCache::statKeys() {
 	keys.push_back("totalCycles");
 	keys.push_back("activeCycles");
 	keys.push_back("readMisses");
-	keys.push_back("conflictMisses");
 	keys.push_back("ocmDepth");
 	keys.push_back("issueWindow");
 	keys.push_back("hazardStalls");
 	keys.push_back("cms");
+	keys.push_back("noValidButReady");
+	keys.push_back("noReadyButValid");
 	return keys;
 }
 
