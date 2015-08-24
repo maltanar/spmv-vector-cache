@@ -55,6 +55,7 @@ class CAM(entries: Int, tag_bits: Int) extends Module {
 class IssueWindow(entries: Int, tag_bits: Int) extends Module {
   val io = new Bundle {
     val hazard = Bool(OUTPUT)
+    val full = Bool(OUTPUT)
     val in = Decoupled(UInt(width=tag_bits)).flip
     val rm = Decoupled(UInt(width=tag_bits)).flip
   }
@@ -72,6 +73,7 @@ class IssueWindow(entries: Int, tag_bits: Int) extends Module {
   cam.write_tag := io.in.bits
   cam.write := canInsert & io.in.valid
   io.hazard := cam.hit & io.in.valid
+  io.full := !cam.hasFree & io.in.valid
 }
 
 class SpMVFrontendNBCache(val p: SpMVAccelWrapperParams) extends Module {
@@ -98,6 +100,7 @@ class SpMVFrontendNBCache(val p: SpMVAccelWrapperParams) extends Module {
     val writeMissCount = UInt(OUTPUT, 32)
     val conflictMissCount = UInt(OUTPUT, 32)
     val hazardStalls = UInt(OUTPUT, 32)
+    val capacityStalls = UInt(OUTPUT, 32)
     val cacheState = UInt(OUTPUT, 32)
     val bwMon = new StreamMonitorOutIF()
 
@@ -221,6 +224,7 @@ class SpMVFrontendNBCache(val p: SpMVAccelWrapperParams) extends Module {
   io.doneRegular := (regOpCount === io.numNZ)
 
   io.hazardStalls := Counter32Bit(iw.hazard)
+  io.capacityStalls := Counter32Bit(iw.full)
 
   io.bwMon := StreamMonitor(redJoin.out, io.startRegular & !io.doneRegular)
 }

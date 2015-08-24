@@ -61,6 +61,7 @@ protected:
 	unsigned int m_activeCycles;
 	unsigned int m_readMisses;
 	unsigned int m_hazardStalls;
+	unsigned int m_capacityStalls;
 	unsigned int m_noValidButReady;
 	unsigned int m_noReadyButValid;
 

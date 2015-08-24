@@ -3,7 +3,7 @@
 #include <assert.h>
 class SpMVAcceleratorNewCacheDriver {
 public:
- static unsigned int expSignature() {return 0xeea49d85;};
+ static unsigned int expSignature() {return 0x77adcc3f;};
  SpMVAcceleratorNewCacheDriver(volatile unsigned int * baseAddr) {
   m_baseAddr = baseAddr; assert(signature() == expSignature());};
  // read+write register: startInit index: 15
@@ -93,9 +93,9 @@ public:
  // read+write register: hazardStalls index: 13
  void hazardStalls(unsigned int v) {m_baseAddr[13] = v;};
  unsigned int hazardStalls() {return m_baseAddr[13];};
- // read+write register: debug index: 14
- void debug(unsigned int v) {m_baseAddr[14] = v;};
- unsigned int debug() {return m_baseAddr[14];};
+ // read+write register: capacityStalls index: 14
+ void capacityStalls(unsigned int v) {m_baseAddr[14] = v;};
+ unsigned int capacityStalls() {return m_baseAddr[14];};
  // read+write register: signature index: 0
  void signature(unsigned int v) {m_baseAddr[0] = v;};
  unsigned int signature() {return m_baseAddr[0];};
