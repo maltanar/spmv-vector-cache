@@ -11,7 +11,7 @@ import java.io.{FileInputStream, DataInputStream}
 
 
 class SpMVAcceleratorBufferAll(p: SpMVAccelWrapperParams) extends AXIWrappableAccel(p) {
-  override lazy val accelVersion: String = "alpha-5"
+  override lazy val accelVersion: String = "beta-1"
 
   // plug unused register file elems / set defaults
   plugRegOuts()
@@ -120,8 +120,6 @@ class SpMVAcceleratorBufferAll(p: SpMVAccelWrapperParams) extends AXIWrappableAc
 
   out.fifoCountsCPRI := Cat(pad16(colPtrFIFO.count), pad16(rowIndFIFO.count))
   out.fifoCountsNZIV := Cat(pad16(nzDataFIFO.count), pad16(inpVecFIFO.count))
-
-  out.bwMon := StreamMonitor(io.mp(0).memRdRsp, in.startRegular & !frontend.doneRegular)
 
   // test
   override def defaultTest(t: WrappableAccelTester): Boolean = {

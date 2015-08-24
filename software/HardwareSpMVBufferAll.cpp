@@ -11,6 +11,9 @@ HardwareSpMVBufferAll::HardwareSpMVBufferAll(unsigned int aBase,
 	// buffer-all: ensure all rows will fit within OCM
 	//cout << "# OCM words: " << m_acc->ocmWords() << endl;
 	assert(A->getRows() <= m_acc->ocmWords());
+
+	m_noValidButReady = 0;
+	m_noReadyButValid = 0;
 }
 
 HardwareSpMVBufferAll::~HardwareSpMVBufferAll() {
@@ -129,6 +132,10 @@ unsigned int HardwareSpMVBufferAll::statInt(std::string name) {
 		return m_acc->ocmWords();
 	else if (name == "hazardStalls")
 		return m_hazardStalls;
+	else if (name == "noValidButReady")
+		return m_noValidButReady;
+	else if (name == "noReadyButValid")
+		return m_noReadyButValid;
 	else
 		return HardwareSpMV::statInt(name);
 }
@@ -139,6 +146,8 @@ std::vector<std::string> HardwareSpMVBufferAll::statKeys() {
 	keys.push_back("activeCycles");
 	keys.push_back("ocmDepth");
 	keys.push_back("hazardStalls");
+	keys.push_back("noValidButReady");
+	keys.push_back("noReadyButValid");
 	return keys;
 }
 
@@ -146,6 +155,8 @@ void HardwareSpMVBufferAll::updateStatistics() {
 	m_totalCycles = m_acc->bwMon_totalCycles();
 	m_activeCycles = m_acc->bwMon_activeCycles();
 	m_hazardStalls = m_acc->hazardStalls();
+	m_noValidButReady = m_acc->bwMon_noValidButReady();
+	m_noReadyButValid = m_acc->bwMon_noReadyButValid();
 }
 
 void HardwareSpMVBufferAll::setThresholdRegisters() {

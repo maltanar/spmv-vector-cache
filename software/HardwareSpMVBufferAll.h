@@ -58,6 +58,8 @@ protected:
 	unsigned int m_totalCycles;
 	unsigned int m_activeCycles;
 	unsigned int m_hazardStalls;
+	unsigned int m_noValidButReady;
+	unsigned int m_noReadyButValid;
 
 
 	virtual void setThresholdRegisters();

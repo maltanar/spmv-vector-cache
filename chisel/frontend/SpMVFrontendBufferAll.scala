@@ -21,8 +21,9 @@ class SpMVFrontendBufferAll(val p: SpMVAccelWrapperParams) extends Module {
     val doneInit = Bool(OUTPUT)
     val doneRegular = Bool(OUTPUT)
     val doneWrite = Bool(OUTPUT)
-    // TODO debug+profiling outputs
+    // debug+profiling outputs
     val hazardStalls = UInt(OUTPUT, width = 32)
+    val bwMon = new StreamMonitorOutIF()
     // value inputs
     val numNZ = UInt(INPUT, width = 32)
     val numRows = UInt(INPUT, width = 32)
@@ -96,4 +97,6 @@ class SpMVFrontendBufferAll(val p: SpMVAccelWrapperParams) extends Module {
 
   // TODO emit statistics (hazards, etc)
   io.hazardStalls := reducer.hazardStalls
+
+  io.bwMon := StreamMonitor(redJoin.out, io.startRegular & !io.doneRegular)
 }
