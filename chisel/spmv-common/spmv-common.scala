@@ -35,7 +35,7 @@ class SpMVAccelWrapperParams(arg: List[String] = List()) extends BaseWrapperPara
 
   lazy val suffix: String = {
     (if(enableCMS) "cms-" else "") +
-    (if(enableNB) "nb-" else "") +
+    (if(enableNB) "nb"+ maxMiss.toString +"-" else "") +
     ocmDepth.toString + "-" + issueWindow.toString
   }
 
