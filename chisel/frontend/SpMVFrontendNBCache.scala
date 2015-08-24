@@ -54,6 +54,7 @@ class CAM(entries: Int, tag_bits: Int) extends Module {
 
 class IssueWindow(entries: Int, tag_bits: Int) extends Module {
   val io = new Bundle {
+    val hazard = Bool(OUTPUT)
     val in = Decoupled(UInt(width=tag_bits)).flip
     val rm = Decoupled(UInt(width=tag_bits)).flip
   }
@@ -70,6 +71,7 @@ class IssueWindow(entries: Int, tag_bits: Int) extends Module {
   io.in.ready := canInsert
   cam.write_tag := io.in.bits
   cam.write := canInsert & io.in.valid
+  io.hazard := cam.hit & io.in.valid
 }
 
 class SpMVFrontendNBCache(val p: SpMVAccelWrapperParams) extends Module {
@@ -218,8 +220,7 @@ class SpMVFrontendNBCache(val p: SpMVAccelWrapperParams) extends Module {
   // use op count to drive the doneRegular signal
   io.doneRegular := (regOpCount === io.numNZ)
 
-  // TODO report the actual #hazard stalls
-  io.hazardStalls := UInt(255)
+  io.hazardStalls := Counter32Bit(iw.hazard)
 
   io.bwMon := StreamMonitor(redJoin.out, io.startRegular & !io.doneRegular)
 }
