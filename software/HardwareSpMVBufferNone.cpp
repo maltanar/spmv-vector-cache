@@ -15,6 +15,8 @@ HardwareSpMVBufferNone::HardwareSpMVBufferNone(unsigned int aBase,
 	m_activeCycles = 0;
 	m_hazardStalls = 0;
 	m_capacityStalls = 0;
+	m_noValidButReady = 0;
+	m_noReadyButValid = 0;
 }
 
 HardwareSpMVBufferNone::~HardwareSpMVBufferNone() {
@@ -109,6 +111,8 @@ void HardwareSpMVBufferNone::updateStatistics() {
 	m_activeCycles = m_acc->bwMon_activeCycles();
 	m_hazardStalls = m_acc->hazardStalls();
 	m_capacityStalls = m_acc->capacityStalls();
+	m_noValidButReady = m_acc->bwMon_noValidButReady();
+	m_noReadyButValid = m_acc->bwMon_noReadyButValid();
 }
 
 unsigned int HardwareSpMVBufferNone::statInt(std::string name) {
@@ -122,6 +126,10 @@ unsigned int HardwareSpMVBufferNone::statInt(std::string name) {
 		return m_acc->issueWindow();
 	else if (name == "hazardStalls")
 		return m_hazardStalls;
+	else if (name == "noValidButReady")
+		return m_noValidButReady;
+	else if (name == "noReadyButValid")
+		return m_noReadyButValid;
 	else
 		return HardwareSpMV::statInt(name);
 }
@@ -134,6 +142,8 @@ std::vector<std::string> HardwareSpMVBufferNone::statKeys() {
 	keys.push_back("capacityStalls");
 	keys.push_back("issueWindow");
 	keys.push_back("hazardStalls");
+	keys.push_back("noValidButReady");
+	keys.push_back("noReadyButValid");
 	return keys;
 }
 

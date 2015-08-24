@@ -34,6 +34,8 @@ class SpMVFrontendBufferNone(val p: SpMVAccelWrapperParams) extends Module {
     val nzDataIn = Decoupled(UInt(width = p.opWidth)).flip
     val inputVecIn = Decoupled(UInt(width = p.opWidth)).flip
 
+    val bwMon = new StreamMonitorOutIF()
+
     // BufferNone-specific frontend ports:
     // port for res.vec reads/writes
     val mp = new GenericMemoryMasterPort(p.toMRP())
@@ -167,4 +169,7 @@ class SpMVFrontendBufferNone(val p: SpMVAccelWrapperParams) extends Module {
   io.hazardStalls := Counter(shadowQ.hazard, scala.math.pow(2,32).toInt)._1
   val capStallIndicator = !shadowQ.hazard & !shadowQ.enq.ready & shadowQ.enq.valid
   io.capacityStalls := Counter(capStallIndicator, scala.math.pow(2,32).toInt)._1
+  
+  io.bwMon := StreamMonitor(redJoin.out, io.startRegular & !io.doneRegular)
+
 }
