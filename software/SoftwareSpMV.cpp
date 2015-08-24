@@ -12,6 +12,8 @@ SoftwareSpMV::SoftwareSpMV(SparseMatrix * A, SpMVData *x, SpMVData *y) :
 	m_cmsTime = 0;
 	m_maxAliveTime = 0;
 	m_maxColSpanTime = 0;
+	m_maxAlive = 0;
+	m_maxColSpan = 0;
 
 	if (A == 0) {
 		cerr << "Invalid matrix for SoftwareSpMV!" << endl;
@@ -39,8 +41,10 @@ SoftwareSpMV::SoftwareSpMV(SparseMatrix * A, SpMVData *x, SpMVData *y) :
 }
 
 SoftwareSpMV::~SoftwareSpMV() {
-	if(m_allocX) delete [] m_x;
-	if(m_allocY) delete [] m_y;
+	if (m_allocX)
+		delete[] m_x;
+	if (m_allocY)
+		delete[] m_y;
 }
 
 bool SoftwareSpMV::exec() {
@@ -66,13 +70,27 @@ bool SoftwareSpMV::exec() {
 }
 
 void SoftwareSpMV::measurePreprocessingTimes() {
+	// measure time for maxAlive and maxColSpan
+
+	TimerStart();
+	m_maxColSpan = m_A->maxColSpan();
+	TimerStop();
+	m_maxColSpanTime = TimerRead();
+
+	TimerStart();
+	m_maxAlive = m_A->maxAlive();
+	TimerStop();
+	m_maxAliveTime = TimerRead();
+
+	m_A->clearRowMarkings(~((1 << 31) | (1 << 30)));
+
 	TimerStart();
 	m_A->markRowStarts();
 	TimerStop();
 	m_cmsTime = TimerRead();
 
-	// TODO measure time for maxAlive and maxColSkip
-	// TODO clear row start info to prevent corruption in software SpMV
+	// clear row start info to prevent corruption in software SpMV
+	m_A->clearRowMarkings(~((1 << 31) | (1 << 30)));
 }
 
 std::vector<std::string> SoftwareSpMV::statKeys() {
@@ -82,11 +100,12 @@ std::vector<std::string> SoftwareSpMV::statKeys() {
 	keys.push_back("nz");
 	keys.push_back("spmvtime");
 	keys.push_back("cmstime");
-	keys.push_back("matime");
-	keys.push_back("mcstime");
+	keys.push_back("maxAliveTime");
+	keys.push_back("maxColSpanTime");
+	keys.push_back("maxAlive");
+	keys.push_back("maxColSpan");
 	return keys;
 }
-
 
 unsigned int SoftwareSpMV::statInt(std::string name) {
 	if (name == "rows")
@@ -99,10 +118,14 @@ unsigned int SoftwareSpMV::statInt(std::string name) {
 		return m_execTime;
 	else if (name == "cmstime")
 		return m_cmsTime;
-	else if (name == "matime")
+	else if (name == "maxAliveTime")
 		return m_maxAliveTime;
-	else if (name == "mcstime")
+	else if (name == "maxColSpanTime")
 		return m_maxColSpanTime;
+	else if (name == "maxAlive")
+		return m_maxAlive;
+	else if (name == "maxColSpan")
+		return m_maxColSpan;
 	else
 		return 0;
 }

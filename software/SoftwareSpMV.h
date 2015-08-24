@@ -21,6 +21,8 @@ protected:
 	unsigned int m_cmsTime;
 	unsigned int m_maxAliveTime;
 	unsigned int m_maxColSpanTime;
+	unsigned int m_maxAlive;
+	unsigned int m_maxColSpan;
 };
 
 #endif /* SOFTWARESPMV_H_ */

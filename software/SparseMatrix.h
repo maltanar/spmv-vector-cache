@@ -28,7 +28,10 @@ public:
 
 	static SparseMatrix* fromMemory(unsigned int metaDataBase);
 
-	void markRowStarts();
+	void markRowStarts(const bool reverse = false, const int shift = 31);
+	unsigned int maxAlive();
+	unsigned int maxColSpan();
+	void clearRowMarkings(const unsigned int mask);
 
 	unsigned int getCols() const {
 		return m_cols;
