@@ -66,7 +66,8 @@ void printResults(SpMV * spmv, vector<string> keys) {
 }
 
 /*
- S. Williams matrix suite:
+ s q 0
+
  cant
  conf5_4-8x8-05
  consph
@@ -85,8 +86,9 @@ void printResults(SpMV * spmv, vector<string> keys) {
  2D_54019_highK
  mark3jac140
  cant
- pdb1HYS
  conf5_4-8x8-05
+ pdb1HYS
+ rma10
  q
 
  other matrices (small row/col count, < 32K):
@@ -229,7 +231,7 @@ int main(int argc, char *argv[]) {
 			HardwareSpMV * spmv = HWSpMVFactory::make(accBase, resBase, A, x,
 					y);
 			//spmv->setThresholds(256, 512, 512, 256);
-			spmv->setThresholds(200, 400, 400, 200);
+			//spmv->setThresholds(200, 400, 400, 200);
 			// generate + print stat keys on the first run
 			if (!keysBuilt) {
 				keys = spmv->statKeys();
