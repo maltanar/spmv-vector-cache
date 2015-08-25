@@ -29,10 +29,11 @@ class SpMVFrontendNewCache(val p: SpMVAccelWrapperParams) extends Module {
 
     // TODO debug+profiling outputs
     val readMissCount = UInt(OUTPUT, 32)
-    val writeMissCount = UInt(OUTPUT, 32)
     val conflictMissCount = UInt(OUTPUT, 32)
     val hazardStalls = UInt(OUTPUT, 32)
+    val capacityStalls = UInt(OUTPUT, 32)
     val cacheState = UInt(OUTPUT, 32)
+    val bwMon = new StreamMonitorOutIF()
 
     // value inputs
     val numNZ = UInt(INPUT, width = 32)
@@ -113,7 +114,6 @@ class SpMVFrontendNewCache(val p: SpMVAccelWrapperParams) extends Module {
   io.doneInit := cache.done & io.startInit
   io.doneWrite := cache.done & io.startWrite
   io.readMissCount := cache.readMissCount
-  io.writeMissCount := cache.writeMissCount
   io.conflictMissCount := cache.conflictMissCount
   io.cacheState := cache.cacheState
 
@@ -139,7 +139,7 @@ class SpMVFrontendNewCache(val p: SpMVAccelWrapperParams) extends Module {
 
   val addFork = Module(new StreamFork(opsAndId, syncOpType, idType, forkOps, forkId)).io
   val adder = Module(p.makeAdd())
-  val adderIdQ = Module(new Queue(idType, adder.latency)).io
+  val adderIdQ = Module(new Queue(idType, adder.latency+2)).io
   val addJoin = Module(new StreamJoin(opType, idType, opWidthIdType, joinOpId)).io
 
   cacheReadJoin.out <> addFork.in
@@ -165,4 +165,7 @@ class SpMVFrontendNewCache(val p: SpMVAccelWrapperParams) extends Module {
   io.doneRegular := (regOpCount === io.numNZ)
 
   io.hazardStalls := Counter32Bit(shadow.hazard)
+  io.capacityStalls := UInt(0)
+
+  io.bwMon := StreamMonitor(redJoin.out, io.startRegular & !io.doneRegular)
 }
